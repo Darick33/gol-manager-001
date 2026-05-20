@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.local
+*.tsbuildinfo
+*.log
+drizzle.config.js
+drizzle.config.js.map
+drizzle.config.d.ts

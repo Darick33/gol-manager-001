@@ -1,0 +1,50 @@
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { PaymentsService } from './payments.service';
+
+@Controller('payments')
+export class PaymentsController {
+  constructor(private paymentsService: PaymentsService) {}
+
+  // Delegate uploads a receipt for a specific fine
+  @Post('fine/:fineId/team/:teamId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('DELEGATE', 'SUPER_ADMIN')
+  uploadReceipt(
+    @Param('fineId') fineId: string,
+    @Param('teamId') teamId: string,
+    @Body('receiptUrl') receiptUrl: string,
+  ) {
+    return this.paymentsService.uploadReceipt(fineId, teamId, receiptUrl);
+  }
+
+  @Get('pending')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN')
+  findPending() {
+    return this.paymentsService.findPending();
+  }
+
+  @Get('team/:teamId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'DELEGATE')
+  findByTeam(@Param('teamId') teamId: string) {
+    return this.paymentsService.findByTeam(teamId);
+  }
+
+  @Patch(':id/approve')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN')
+  approve(@Param('id') id: string, @Body('adminId') adminId: string) {
+    return this.paymentsService.review(id, 'APPROVED', adminId);
+  }
+
+  @Patch(':id/reject')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN')
+  reject(@Param('id') id: string, @Body('adminId') adminId: string) {
+    return this.paymentsService.review(id, 'REJECTED', adminId);
+  }
+}

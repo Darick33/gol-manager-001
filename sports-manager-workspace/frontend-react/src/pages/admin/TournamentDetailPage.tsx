@@ -1,0 +1,1333 @@
+import { useState, Fragment } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  ArrowLeft, Trophy, Users, Calendar, BarChart2, Plus,
+  ChevronDown, ChevronUp, X, Loader2, Play, Swords, Shield,
+  Pencil, Check, ExternalLink, FileDown,
+} from 'lucide-react';
+import { tournamentsApi } from '../../api/tournaments.api';
+import { teamsApi, playersApi } from '../../api/teams.api';
+import { matchesApi } from '../../api/matches.api';
+import { Button } from '../../components/ui/button';
+import { ImageUpload } from '../../components/ui/ImageUpload';
+import type { Team, Match, Player, MatchEvent } from '../../types';
+
+const SPORT_LABEL = { FOOTBALL: 'Fútbol', FUTSAL: 'Fútbol Sala' };
+const FORMAT_LABEL = {
+  ROUND_ROBIN: 'Round Robin',
+  DIRECT_ELIMINATION: 'Eliminación Directa',
+  GROUPS_ELIMINATION: 'Grupos + Eliminación',
+};
+const STATUS = {
+  DRAFT:    { label: 'Borrador',   color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
+  ACTIVE:   { label: 'Activo',     color: '#10b981', bg: 'rgba(16,185,129,0.12)'  },
+  FINISHED: { label: 'Finalizado', color: '#8b5cf6', bg: 'rgba(139,92,246,0.12)'  },
+};
+const MATCH_STATUS = {
+  SCHEDULED:   { label: 'Programado', color: '#64748b', bg: 'rgba(100,116,139,0.1)' },
+  IN_PROGRESS: { label: 'En curso',   color: '#10b981', bg: 'rgba(16,185,129,0.1)' },
+  FINISHED:    { label: 'Finalizado', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
+};
+
+type Tab = 'teams' | 'fixture' | 'standings';
+
+function computeStandings(teams: Team[], matches: Match[]) {
+  const stats: Record<string, { played: number; won: number; drawn: number; lost: number; gf: number; ga: number; pts: number }> = {};
+  for (const t of teams) stats[t.id] = { played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, pts: 0 };
+  for (const m of matches) {
+    if (m.status !== 'FINISHED') continue;
+    const home = stats[m.homeTeamId];
+    const away = stats[m.awayTeamId];
+    if (!home || !away) continue;
+    home.played++; away.played++;
+    home.gf += m.homeScore; home.ga += m.awayScore;
+    away.gf += m.awayScore; away.ga += m.homeScore;
+    if (m.homeScore > m.awayScore) { home.won++; home.pts += 3; away.lost++; }
+    else if (m.homeScore < m.awayScore) { away.won++; away.pts += 3; home.lost++; }
+    else { home.drawn++; home.pts++; away.drawn++; away.pts++; }
+  }
+  const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
+  return Object.entries(stats)
+    .map(([id, s]) => ({ team: teamMap[id], ...s, gd: s.gf - s.ga }))
+    .sort((a, b) => b.pts - a.pts || b.gd - a.gd || b.gf - a.gf);
+}
+
+export default function TournamentDetailPage() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [tab, setTab] = useState<Tab>('teams');
+  const [showAddTeam, setShowAddTeam] = useState(false);
+  const [teamName, setTeamName] = useState('');
+  const [teamLogoUrl, setTeamLogoUrl] = useState<string | null>(null);
+  const [showAddPlayer, setShowAddPlayer] = useState<string | null>(null); // teamId
+  const [playerForm, setPlayerForm] = useState({ name: '', dorsal: '' });
+  const [playerPhotoUrl, setPlayerPhotoUrl] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+
+  const { data: tournament, isLoading } = useQuery({
+    queryKey: ['tournament', id],
+    queryFn: () => tournamentsApi.getById(id!),
+    enabled: !!id,
+  });
+
+  const { data: teams = [] } = useQuery({
+    queryKey: ['tournament-teams', id],
+    queryFn: () => teamsApi.getByTournament(id!),
+    enabled: !!id,
+  });
+
+  const { data: matches = [] } = useQuery({
+    queryKey: ['tournament-matches', id],
+    queryFn: () => tournamentsApi.getMatches(id!),
+    enabled: !!id,
+  });
+
+  const onError = (err: unknown) => {
+    const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error inesperado';
+    setMutationError(Array.isArray(msg) ? msg[0] : msg);
+    setTimeout(() => setMutationError(null), 4000);
+  };
+
+  const addTeam = useMutation({
+    mutationFn: () => teamsApi.create({
+      name: teamName.trim(),
+      tournamentId: id!,
+      ...(teamLogoUrl ? { logoUrl: teamLogoUrl } : {}),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournament-teams', id] });
+      setShowAddTeam(false);
+      setTeamName('');
+      setTeamLogoUrl(null);
+    },
+    onError,
+  });
+
+  const addPlayer = useMutation({
+    mutationFn: () => playersApi.create({
+      name: playerForm.name.trim(),
+      teamId: showAddPlayer!,
+      dorsal: Number(playerForm.dorsal),
+      ...(playerPhotoUrl ? { photoUrl: playerPhotoUrl } : {}),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team-players', showAddPlayer] });
+      setShowAddPlayer(null);
+      setPlayerForm({ name: '', dorsal: '' });
+      setPlayerPhotoUrl(null);
+    },
+    onError,
+  });
+
+  const generateFixture = useMutation({
+    mutationFn: () => tournamentsApi.generateFixture(id!),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournament', id] });
+      qc.invalidateQueries({ queryKey: ['tournament-matches', id] });
+      qc.invalidateQueries({ queryKey: ['tournaments'] });
+      setTab('fixture');
+    },
+    onError,
+  });
+
+  const finishTournament = useMutation({
+    mutationFn: () => tournamentsApi.update(id!, { status: 'FINISHED' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournament', id] });
+      qc.invalidateQueries({ queryKey: ['tournaments'] });
+    },
+    onError,
+  });
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 80 }}>
+        <Loader2 size={24} color="#475569" style={{ animation: 'spin 1s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    );
+  }
+
+  if (!tournament) return null;
+
+  const status = STATUS[tournament.status];
+  const matchesByStage = matches.reduce<Record<number, Match[]>>((acc, m) => {
+    const s = m.stage ?? 1;
+    if (!acc[s]) acc[s] = [];
+    acc[s].push(m);
+    return acc;
+  }, {});
+  const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
+
+  const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+    { key: 'teams',    label: 'Equipos',    icon: Users    },
+    { key: 'fixture',  label: 'Fixture',    icon: Calendar },
+    { key: 'standings', label: 'Posiciones', icon: BarChart2 },
+  ];
+
+  return (
+    <div>
+      {/* Error toast */}
+      <AnimatePresence>
+        {mutationError && (
+          <motion.div
+            initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }}
+            style={{
+              position: 'fixed', top: 20, right: 20, zIndex: 200,
+              background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)',
+              borderRadius: 12, padding: '12px 18px',
+              color: '#fca5a5', fontSize: 13, fontWeight: 600,
+              backdropFilter: 'blur(8px)',
+            }}
+          >
+            {mutationError}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Back + header */}
+      <div style={{ marginBottom: 28 }}>
+        <button
+          onClick={() => navigate('/admin/tournaments')}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 6,
+            background: 'none', border: 'none', color: '#475569',
+            fontSize: 13, fontWeight: 500, cursor: 'pointer', padding: '4px 0', marginBottom: 16,
+          }}
+        >
+          <ArrowLeft size={14} /> Torneos
+        </button>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+              <div style={{
+                width: 40, height: 40, borderRadius: 12,
+                background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Trophy size={18} color="#10b981" />
+              </div>
+              <h1 style={{ fontSize: 24, fontWeight: 800, color: '#f8fafc', margin: 0, letterSpacing: '-0.5px' }}>
+                {tournament.name}
+              </h1>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <Badge label={SPORT_LABEL[tournament.sportType]} color="#3b82f6" />
+              <Badge label={FORMAT_LABEL[tournament.format]} color="#8b5cf6" />
+              <span style={{
+                fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 100,
+                color: status.color, background: status.bg,
+              }}>
+                {status.label}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            {tournament.status === 'DRAFT' && teams.length >= 2 && matches.length === 0 && (
+              <Button onClick={() => generateFixture.mutate()} disabled={generateFixture.isPending}>
+                {generateFixture.isPending
+                  ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} />Generando...</>
+                  : <><Play size={14} style={{ marginRight: 6 }} />Generar fixture</>}
+              </Button>
+            )}
+            {tournament.status === 'ACTIVE' && (
+              <Button variant="outline" onClick={() => finishTournament.mutate()} disabled={finishTournament.isPending}>
+                Finalizar torneo
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{
+        display: 'flex', gap: 4, marginBottom: 24,
+        background: 'rgba(255,255,255,0.02)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        borderRadius: 12, padding: 4,
+        width: 'fit-content',
+      }}>
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => setTab(key)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '7px 14px', borderRadius: 9, border: 'none',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              transition: 'background 0.15s, color 0.15s',
+              background: tab === key ? 'rgba(16,185,129,0.12)' : 'transparent',
+              color: tab === key ? '#10b981' : '#475569',
+            }}
+          >
+            <Icon size={14} />
+            {label}
+            {key === 'teams' && teams.length > 0 && (
+              <span style={{
+                fontSize: 11, fontWeight: 700,
+                background: tab === key ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
+                color: tab === key ? '#10b981' : '#64748b',
+                padding: '1px 6px', borderRadius: 100,
+              }}>{teams.length}</span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={tab}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.18 }}
+        >
+          {tab === 'teams' && (
+            <TeamsTab
+              teams={teams}
+              onAddTeam={() => setShowAddTeam(true)}
+              onAddPlayer={(teamId) => setShowAddPlayer(teamId)}
+              tournamentId={id!}
+            />
+          )}
+          {tab === 'fixture' && (
+            <FixtureTab
+              matches={matches}
+              matchesByStage={matchesByStage}
+              teamMap={teamMap}
+              tournamentStatus={tournament.status}
+              teamsCount={teams.length}
+              onGenerate={() => generateFixture.mutate()}
+              isGenerating={generateFixture.isPending}
+            />
+          )}
+          {tab === 'standings' && (
+            <StandingsTab teams={teams} matches={matches} format={tournament.format} />
+          )}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* Add team modal */}
+      <AnimatePresence>
+        {showAddTeam && (
+          <Modal onClose={() => { setShowAddTeam(false); setTeamLogoUrl(null); }}>
+            <h2 style={modalTitle}>Agregar equipo</h2>
+            <form onSubmit={(e) => { e.preventDefault(); addTeam.mutate(); }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ paddingTop: 20 }}>
+                  <ImageUpload value={teamLogoUrl} onChange={setTeamLogoUrl} shape="square" size={68} placeholder="Logo" />
+                </div>
+                <Field label="Nombre del equipo" style={{ flex: 1 }}>
+                  <input
+                    value={teamName} onChange={(e) => setTeamName(e.target.value)}
+                    required placeholder="Los Cóndores" style={inputStyle} autoFocus
+                  />
+                </Field>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Button variant="outline" type="button" onClick={() => { setShowAddTeam(false); setTeamLogoUrl(null); }}>Cancelar</Button>
+                <Button type="submit" disabled={addTeam.isPending}>
+                  {addTeam.isPending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Agregar'}
+                </Button>
+              </div>
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      {/* Add player modal */}
+      <AnimatePresence>
+        {showAddPlayer && (
+          <Modal onClose={() => { setShowAddPlayer(null); setPlayerPhotoUrl(null); }}>
+            <h2 style={modalTitle}>Agregar jugador</h2>
+            <form onSubmit={(e) => { e.preventDefault(); addPlayer.mutate(); }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ paddingTop: 20 }}>
+                  <ImageUpload value={playerPhotoUrl} onChange={setPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" />
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Field label="Nombre">
+                    <input
+                      value={playerForm.name}
+                      onChange={(e) => setPlayerForm({ ...playerForm, name: e.target.value })}
+                      required placeholder="Juan García" style={inputStyle} autoFocus
+                    />
+                  </Field>
+                  <Field label="Dorsal">
+                    <input
+                      type="number" min={1} max={99}
+                      value={playerForm.dorsal}
+                      onChange={(e) => setPlayerForm({ ...playerForm, dorsal: e.target.value })}
+                      required placeholder="10" style={inputStyle}
+                    />
+                  </Field>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Button variant="outline" type="button" onClick={() => { setShowAddPlayer(null); setPlayerPhotoUrl(null); }}>Cancelar</Button>
+                <Button type="submit" disabled={addPlayer.isPending}>
+                  {addPlayer.isPending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Agregar'}
+                </Button>
+              </div>
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse-live { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.35); } }
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Teams Tab ────────────────────────────────────────────────────────────────
+
+function TeamsTab({ teams, onAddTeam, onAddPlayer, tournamentId }: {
+  teams: Team[];
+  onAddTeam: () => void;
+  onAddPlayer: (teamId: string) => void;
+  tournamentId: string;
+}) {
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
+        <Button onClick={onAddTeam}>
+          <Plus size={14} style={{ marginRight: 6 }} />Agregar equipo
+        </Button>
+      </div>
+      {teams.length === 0 ? (
+        <EmptyState icon={Shield} text="Sin equipos aún. Agregá el primero para empezar." />
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {teams.map((team, i) => (
+            <motion.div
+              key={team.id}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05, duration: 0.3 }}
+            >
+              <TeamCard team={team} onAddPlayer={() => onAddPlayer(team.id)} />
+            </motion.div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeamCard({ team, onAddPlayer }: { team: Team; onAddPlayer: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const { data: players = [], isLoading } = useQuery({
+    queryKey: ['team-players', team.id],
+    queryFn: () => playersApi.getByTeam(team.id),
+    enabled: expanded,
+  });
+
+  return (
+    <div style={{
+      borderRadius: 14,
+      border: '1px solid rgba(255,255,255,0.07)',
+      background: 'rgba(255,255,255,0.02)',
+      overflow: 'hidden',
+    }}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 18px', background: 'none', border: 'none', cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: team.primaryColor ? `${team.primaryColor}22` : 'rgba(255,255,255,0.05)',
+            border: `1px solid ${team.primaryColor ?? 'rgba(255,255,255,0.1)'}33`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            overflow: 'hidden', flexShrink: 0,
+          }}>
+            {team.logoUrl
+              ? <img src={team.logoUrl} alt={team.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <Shield size={16} color={team.primaryColor ?? '#475569'} />
+            }
+          </div>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{team.name}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {expanded
+            ? <ChevronUp size={15} color="#475569" />
+            : <ChevronDown size={15} color="#475569" />}
+        </div>
+      </button>
+
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            style={{ overflow: 'hidden', borderTop: '1px solid rgba(255,255,255,0.05)' }}
+          >
+            <div style={{ padding: '12px 18px 16px' }}>
+              {isLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
+                  <Loader2 size={16} color="#475569" style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : players.length === 0 ? (
+                <p style={{ fontSize: 13, color: '#475569', margin: '0 0 12px' }}>Sin jugadores aún.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+                  {players.map((p) => <PlayerRow key={p.id} player={p} />)}
+                </div>
+              )}
+              <Button variant="outline" onClick={onAddPlayer}>
+                <Plus size={13} style={{ marginRight: 5 }} />Agregar jugador
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function PlayerRow({ player }: { player: Player }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState(player.name);
+  const [editDorsal, setEditDorsal] = useState(String(player.dorsal));
+  const [editError, setEditError] = useState<string | null>(null);
+
+  const updatePlayer = useMutation({
+    mutationFn: () => playersApi.update(player.id, {
+      name: editName.trim(),
+      dorsal: Number(editDorsal),
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team-players', player.teamId] });
+      setEditing(false);
+      setEditError(null);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al guardar';
+      setEditError(Array.isArray(msg) ? msg[0] : msg);
+      setTimeout(() => setEditError(null), 3000);
+    },
+  });
+
+  if (editing) {
+    return (
+      <div style={{
+        display: 'flex', flexDirection: 'column', gap: 8,
+        padding: '8px 10px', borderRadius: 8,
+        background: 'rgba(16,185,129,0.04)',
+        border: '1px solid rgba(16,185,129,0.12)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <input
+            value={editDorsal}
+            onChange={(e) => setEditDorsal(e.target.value)}
+            type="number" min={1} max={99}
+            style={{
+              ...inputStyle, width: 56, padding: '5px 8px', fontSize: 12,
+              textAlign: 'center',
+            }}
+          />
+          <input
+            value={editName}
+            onChange={(e) => setEditName(e.target.value)}
+            autoFocus
+            style={{ ...inputStyle, flex: 1, padding: '5px 10px', fontSize: 13 }}
+          />
+          <button
+            onClick={() => updatePlayer.mutate()}
+            disabled={updatePlayer.isPending}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)',
+              borderRadius: 7, padding: '5px 10px',
+              color: '#10b981', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+            }}
+          >
+            {updatePlayer.isPending
+              ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+              : <><Check size={12} /> Guardar</>}
+          </button>
+          <button
+            onClick={() => { setEditing(false); setEditName(player.name); setEditDorsal(String(player.dorsal)); }}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: '#475569', padding: '5px 6px', borderRadius: 6, fontSize: 12, flexShrink: 0,
+            }}
+          >
+            Cancelar
+          </button>
+        </div>
+        {editError && (
+          <span style={{ fontSize: 11, color: '#f87171', paddingLeft: 4 }}>{editError}</span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 10,
+      padding: '6px 10px', borderRadius: 8,
+      background: 'rgba(255,255,255,0.02)',
+      transition: 'background 0.12s',
+    }}>
+      {player.photoUrl ? (
+        <img src={player.photoUrl} alt={player.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+      ) : (
+        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }} />
+      )}
+      <span style={{
+        fontSize: 11, fontWeight: 700, color: '#64748b',
+        fontVariantNumeric: 'tabular-nums', width: 24, textAlign: 'right', flexShrink: 0,
+      }}>
+        #{player.dorsal}
+      </span>
+      <span style={{ fontSize: 13, color: '#cbd5e1', fontWeight: 500, flex: 1 }}>{player.name}</span>
+      <button
+        onClick={() => setEditing(true)}
+        style={{
+          background: 'none', border: 'none', cursor: 'pointer',
+          color: '#334155', padding: '4px 6px', borderRadius: 6,
+          display: 'flex', alignItems: 'center',
+          transition: 'color 0.15s',
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#64748b'; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#334155'; }}
+      >
+        <Pencil size={12} />
+      </button>
+    </div>
+  );
+}
+
+// ─── Fixture Tab ──────────────────────────────────────────────────────────────
+
+type FixtureSubTab = 'live' | 'today' | 'all';
+
+function FixtureTab({ matches, matchesByStage, teamMap, tournamentStatus, teamsCount, onGenerate, isGenerating }: {
+  matches: Match[];
+  matchesByStage: Record<number, Match[]>;
+  teamMap: Record<string, Team>;
+  tournamentStatus: string;
+  teamsCount: number;
+  onGenerate: () => void;
+  isGenerating: boolean;
+}) {
+  const [sub, setSub] = useState<FixtureSubTab>('live');
+
+  if (matches.length === 0) {
+    if (teamsCount < 2) {
+      return <EmptyState icon={Calendar} text="Necesitás al menos 2 equipos para generar el fixture." />;
+    }
+    return (
+      <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+        <Swords size={36} color="#334155" style={{ marginBottom: 16 }} />
+        <p style={{ fontSize: 15, fontWeight: 600, color: '#64748b', margin: '0 0 8px' }}>Fixture no generado</p>
+        <p style={{ fontSize: 13, color: '#334155', margin: '0 0 24px' }}>
+          Tenés {teamsCount} equipos listos. Generá el fixture para empezar.
+        </p>
+        <Button onClick={onGenerate} disabled={isGenerating}>
+          {isGenerating
+            ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite', marginRight: 6 }} />Generando...</>
+            : <><Play size={14} style={{ marginRight: 6 }} />Generar fixture</>}
+        </Button>
+      </div>
+    );
+  }
+
+  const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+  const todayEnd   = new Date(); todayEnd.setHours(23, 59, 59, 999);
+
+  const liveMatches  = matches.filter(m => m.status === 'IN_PROGRESS');
+  const todayMatches = matches.filter(m => {
+    if (m.status === 'IN_PROGRESS') return false;
+    if (!m.scheduledAt) return false;
+    const d = new Date(m.scheduledAt);
+    return d >= todayStart && d <= todayEnd;
+  });
+
+  const stages = Object.keys(matchesByStage).map(Number).sort((a, b) => a - b);
+
+  const SUB_TABS: { key: FixtureSubTab; label: string; count?: number; dot?: boolean }[] = [
+    { key: 'live',  label: 'En Vivo',  count: liveMatches.length,  dot: liveMatches.length > 0 },
+    { key: 'today', label: 'Hoy',      count: todayMatches.length },
+    { key: 'all',   label: 'Jornadas' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* Sub-tabs */}
+      <div style={{ display: 'flex', gap: 3 }}>
+        {SUB_TABS.map(({ key, label, count, dot }) => {
+          const active = sub === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setSub(key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px', borderRadius: 8, border: 'none',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                transition: 'background 0.15s, color 0.15s',
+                background: active
+                  ? key === 'live' ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)'
+                  : 'transparent',
+                color: active
+                  ? key === 'live' ? '#ef4444' : '#f1f5f9'
+                  : '#475569',
+              }}
+            >
+              {dot && (
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%', background: '#ef4444', flexShrink: 0,
+                  animation: active ? 'pulse-live 1.4s ease-in-out infinite' : 'none',
+                }} />
+              )}
+              {label}
+              {count !== undefined && count > 0 && (
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  background: active
+                    ? key === 'live' ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)'
+                    : 'rgba(255,255,255,0.04)',
+                  color: active ? (key === 'live' ? '#ef4444' : '#94a3b8') : '#475569',
+                  padding: '1px 6px', borderRadius: 100,
+                }}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Content */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={sub}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ duration: 0.15 }}
+        >
+          {sub === 'live' && (
+            liveMatches.length === 0
+              ? <EmptyState icon={Play} text="No hay partidos en vivo en este momento." />
+              : <MatchList matches={liveMatches} teamMap={teamMap} />
+          )}
+          {sub === 'today' && (
+            todayMatches.length === 0
+              ? <EmptyState icon={Calendar} text="No hay partidos programados para hoy." />
+              : <MatchList matches={todayMatches} teamMap={teamMap} />
+          )}
+          {sub === 'all' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              {stages.map((stage) => (
+                <div key={stage}>
+                  <h3 style={{ fontSize: 12, fontWeight: 700, color: '#334155', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                    Jornada {stage}
+                  </h3>
+                  <MatchList matches={matchesByStage[stage]} teamMap={teamMap} />
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function MatchList({ matches, teamMap }: { matches: Match[]; teamMap: Record<string, Team> }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {matches.map((match, i) => (
+        <motion.div
+          key={match.id}
+          initial={{ opacity: 0, x: -10 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: i * 0.04, duration: 0.22 }}
+        >
+          <MatchCard match={match} teamMap={teamMap} />
+        </motion.div>
+      ))}
+    </div>
+  );
+}
+
+function EventIcon({ type }: { type: MatchEvent['eventType'] }) {
+  if (type === 'GOAL') return (
+    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981', flexShrink: 0, boxShadow: '0 0 5px #10b98170' }} />
+  );
+  if (type === 'YELLOW_CARD') return (
+    <div style={{ width: 8, height: 11, borderRadius: 2, background: '#eab308', flexShrink: 0, boxShadow: '0 0 4px #eab30870' }} />
+  );
+  if (type === 'RED_CARD') return (
+    <div style={{ width: 8, height: 11, borderRadius: 2, background: '#ef4444', flexShrink: 0, boxShadow: '0 0 4px #ef444470' }} />
+  );
+  return null;
+}
+
+function CardPip({ color, count }: { color: string; count: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+      <div style={{
+        width: 9, height: 12, borderRadius: 2,
+        background: color, flexShrink: 0,
+        boxShadow: `0 0 5px ${color}70`,
+      }} />
+      <span style={{ fontSize: 11, fontWeight: 700, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}>
+        {count}
+      </span>
+    </div>
+  );
+}
+
+function MatchCard({ match, teamMap }: { match: Match; teamMap: Record<string, Team> }) {
+  const qc = useQueryClient();
+  const home = teamMap[match.homeTeamId];
+  const away = teamMap[match.awayTeamId];
+  const isLive = match.status === 'IN_PROGRESS';
+  const isDone = match.status === 'FINISHED';
+
+  const [editing, setEditing] = useState(false);
+  const [dateValue, setDateValue] = useState(match.scheduledAt ? match.scheduledAt.slice(0, 16) : '');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [downloadingActa, setDownloadingActa] = useState(false);
+
+  const handleDownloadActa = async () => {
+    setDownloadingActa(true);
+    try {
+      const blob = await matchesApi.getActa(match.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `acta-${match.id}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Error downloading acta', e);
+    } finally {
+      setDownloadingActa(false);
+    }
+  };
+
+  const { data: matchData } = useQuery({
+    queryKey: ['match-events', match.id],
+    queryFn: () => matchesApi.getById(match.id),
+    enabled: match.status !== 'SCHEDULED',
+    staleTime: 30_000,
+  });
+  const events = (matchData?.events ?? []) as MatchEvent[];
+
+  const { data: homePlayers = [] } = useQuery({
+    queryKey: ['team-players', match.homeTeamId],
+    queryFn: () => playersApi.getByTeam(match.homeTeamId),
+    enabled: isLive,
+    staleTime: 60_000,
+  });
+  const { data: awayPlayers = [] } = useQuery({
+    queryKey: ['team-players', match.awayTeamId],
+    queryFn: () => playersApi.getByTeam(match.awayTeamId),
+    enabled: isLive,
+    staleTime: 60_000,
+  });
+  const allPlayers = [...homePlayers, ...awayPlayers];
+  const getPlayerName = (playerId: string | null) =>
+    playerId ? (allPlayers.find(p => p.id === playerId)?.name ?? null) : null;
+
+  const liveEventLog = isLive
+    ? events
+        .filter(e => e.eventType !== 'SUBSTITUTION')
+        .sort((a, b) => a.minute - b.minute)
+    : [];
+
+  const homeYellow = events.filter(e => e.teamId === match.homeTeamId && e.eventType === 'YELLOW_CARD').length;
+  const homeRed    = events.filter(e => e.teamId === match.homeTeamId && e.eventType === 'RED_CARD').length;
+  const awayYellow = events.filter(e => e.teamId === match.awayTeamId && e.eventType === 'YELLOW_CARD').length;
+  const awayRed    = events.filter(e => e.teamId === match.awayTeamId && e.eventType === 'RED_CARD').length;
+
+  const homeColor = match.homeTeamColor ?? home?.primaryColor ?? '#3b82f6';
+  const awayColor = match.awayTeamColor ?? away?.primaryColor ?? '#8b5cf6';
+  const minute = isLive ? Math.floor((match.timerSeconds ?? 0) / 60) : null;
+
+  const saveSchedule = useMutation({
+    mutationFn: () => matchesApi.updateSchedule(match.id, dateValue || null),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournament-matches'] });
+      setEditing(false);
+      setSaveError(null);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'No se pudo guardar la fecha';
+      setSaveError(Array.isArray(msg) ? msg[0] : msg);
+      setTimeout(() => setSaveError(null), 3000);
+    },
+  });
+
+  const formattedDate = match.scheduledAt
+    ? new Date(match.scheduledAt).toLocaleString('es-CO', {
+        weekday: 'short', day: 'numeric', month: 'short',
+        hour: '2-digit', minute: '2-digit',
+      })
+    : null;
+
+  const openVocalia = () => window.open(`/admin/vocalia/${match.id}`, `vocalia-${match.id}`, 'width=1100,height=700');
+
+  return (
+    <div style={{
+      borderRadius: 14,
+      border: isLive
+        ? '1px solid rgba(16,185,129,0.35)'
+        : isDone
+        ? '1px solid rgba(255,255,255,0.05)'
+        : '1px solid rgba(255,255,255,0.08)',
+      background: isLive
+        ? 'rgba(16,185,129,0.025)'
+        : isDone
+        ? 'rgba(255,255,255,0.01)'
+        : 'rgba(255,255,255,0.02)',
+      boxShadow: isLive
+        ? '0 0 0 1px rgba(16,185,129,0.06), 0 4px 32px rgba(16,185,129,0.06)'
+        : 'none',
+      overflow: 'hidden',
+      transition: 'box-shadow 0.3s',
+    }}>
+      {/* Status bar */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '9px 16px 0',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          {isLive && (
+            <>
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%', background: '#ef4444',
+                display: 'inline-block', animation: 'pulse-live 1.4s ease-in-out infinite', flexShrink: 0,
+              }} />
+              <span style={{ fontSize: 10, fontWeight: 800, color: '#ef4444', letterSpacing: '1px' }}>EN VIVO</span>
+              {minute !== null && (
+                <span style={{ fontSize: 11, fontWeight: 500, color: '#475569' }}>
+                  {minute}' · {match.currentHalf === 1 ? '1er Tiempo' : '2do Tiempo'}
+                </span>
+              )}
+            </>
+          )}
+          {isDone && (
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#8b5cf6', letterSpacing: '0.8px' }}>FINALIZADO</span>
+          )}
+          {!isLive && !isDone && (
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#334155', letterSpacing: '0.5px' }}>PROGRAMADO</span>
+          )}
+        </div>
+        {!isDone && !isLive && (
+          <button
+            onClick={openVocalia}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.15)',
+              borderRadius: 6, padding: '3px 9px',
+              color: '#10b981', fontSize: 10, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.3px',
+            }}
+          >
+            <ExternalLink size={10} /> Vocalia
+          </button>
+        )}
+      </div>
+
+      {/* Main: teams + score */}
+      <div style={{ display: 'flex', alignItems: 'center', padding: '12px 20px 14px', gap: 8 }}>
+        {/* Home */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <span style={{
+              fontSize: 14, fontWeight: 700,
+              color: isDone ? '#64748b' : '#f1f5f9',
+              textAlign: 'right', lineHeight: 1.2,
+            }}>
+              {home?.name ?? '—'}
+            </span>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+              background: `${homeColor}20`, border: `2px solid ${homeColor}45`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Shield size={13} color={homeColor} />
+            </div>
+          </div>
+          {(isLive || isDone) && (homeYellow > 0 || homeRed > 0) && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {homeYellow > 0 && <CardPip color="#eab308" count={homeYellow} />}
+              {homeRed > 0 && <CardPip color="#ef4444" count={homeRed} />}
+            </div>
+          )}
+        </div>
+
+        {/* Score */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 84, flexShrink: 0 }}>
+          {isDone || isLive ? (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              fontSize: 34, fontWeight: 900,
+              color: isDone ? '#94a3b8' : '#f8fafc',
+              fontVariantNumeric: 'tabular-nums', letterSpacing: '-1px', lineHeight: 1,
+            }}>
+              <span>{match.homeScore}</span>
+              <span style={{ fontSize: 22, color: '#2d3748', fontWeight: 600 }}>—</span>
+              <span>{match.awayScore}</span>
+            </div>
+          ) : (
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#2d3748', letterSpacing: '2px' }}>VS</span>
+          )}
+          {isLive && (
+            <div style={{
+              marginTop: 6, width: 36, height: 2, borderRadius: 2,
+              background: 'linear-gradient(90deg, rgba(16,185,129,0.6), rgba(16,185,129,0.05))',
+            }} />
+          )}
+        </div>
+
+        {/* Away */}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 5 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+            <div style={{
+              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+              background: `${awayColor}20`, border: `2px solid ${awayColor}45`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Shield size={13} color={awayColor} />
+            </div>
+            <span style={{
+              fontSize: 14, fontWeight: 700,
+              color: isDone ? '#64748b' : '#f1f5f9',
+              textAlign: 'left', lineHeight: 1.2,
+            }}>
+              {away?.name ?? '—'}
+            </span>
+          </div>
+          {(isLive || isDone) && (awayYellow > 0 || awayRed > 0) && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', paddingLeft: 39 }}>
+              {awayYellow > 0 && <CardPip color="#eab308" count={awayYellow} />}
+              {awayRed > 0 && <CardPip color="#ef4444" count={awayRed} />}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      {isLive ? (
+        <>
+          {/* Event log */}
+          {liveEventLog.length > 0 && (
+            <div style={{
+              borderTop: '1px solid rgba(255,255,255,0.05)',
+              padding: '10px 20px',
+              background: 'rgba(0,0,0,0.1)',
+              display: 'grid',
+              gridTemplateColumns: '1fr 36px 1fr',
+              rowGap: 5,
+              alignItems: 'center',
+            }}>
+              {liveEventLog.map(event => {
+                const isHome = event.teamId === match.homeTeamId;
+                const name = getPlayerName(event.playerId);
+                return (
+                  <Fragment key={event.id}>
+                    {/* Home side */}
+                    {isHome ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                        <span style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 500, textAlign: 'right' }}>
+                          {name ?? '—'}
+                        </span>
+                        <EventIcon type={event.eventType} />
+                      </div>
+                    ) : <div />}
+                    {/* Minute */}
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, color: '#334155',
+                      textAlign: 'center', fontVariantNumeric: 'tabular-nums',
+                    }}>
+                      {event.minute}'
+                    </span>
+                    {/* Away side */}
+                    {!isHome ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <EventIcon type={event.eventType} />
+                        <span style={{ fontSize: 12, color: '#cbd5e1', fontWeight: 500 }}>
+                          {name ?? '—'}
+                        </span>
+                      </div>
+                    ) : <div />}
+                  </Fragment>
+                );
+              })}
+            </div>
+          )}
+          {/* Vocalia CTA */}
+          <div style={{
+            borderTop: '1px solid rgba(16,185,129,0.1)',
+            padding: '8px 16px',
+            display: 'flex', justifyContent: 'center',
+            background: 'rgba(16,185,129,0.02)',
+          }}>
+            <button
+              onClick={openVocalia}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)',
+                borderRadius: 8, padding: '6px 20px',
+                color: '#10b981', fontSize: 12, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.3px',
+              }}
+            >
+              <ExternalLink size={11} /> Abrir Vocalia
+            </button>
+          </div>
+        </>
+      ) : isDone ? (
+        <div style={{
+          borderTop: '1px solid rgba(255,255,255,0.04)',
+          padding: '8px 16px',
+          display: 'flex', justifyContent: 'center',
+          background: 'rgba(0,0,0,0.12)',
+        }}>
+          <button
+            onClick={handleDownloadActa}
+            disabled={downloadingActa}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.25)',
+              borderRadius: 8, padding: '6px 20px',
+              color: '#a78bfa', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              opacity: downloadingActa ? 0.6 : 1, transition: 'opacity 0.2s',
+            }}
+          >
+            {downloadingActa
+              ? <><Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> Descargando...</>
+              : <><FileDown size={11} /> Descargar Acta</>}
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          borderTop: '1px solid rgba(255,255,255,0.04)',
+          padding: '7px 16px',
+          display: 'flex', flexDirection: 'column', gap: 5,
+          background: 'rgba(0,0,0,0.12)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Calendar size={11} color="#334155" style={{ flexShrink: 0 }} />
+            {editing ? (
+              <>
+                <input
+                  type="datetime-local"
+                  value={dateValue}
+                  onChange={(e) => setDateValue(e.target.value)}
+                  style={{
+                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: 7, padding: '4px 8px',
+                    color: '#f1f5f9', fontSize: 12, outline: 'none', colorScheme: 'dark', flex: 1,
+                  }}
+                />
+                <button
+                  onClick={(e) => { e.stopPropagation(); saveSchedule.mutate(); }}
+                  disabled={saveSchedule.isPending}
+                  style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600 }}
+                >
+                  {saveSchedule.isPending ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <><Check size={11} />Guardar</>}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditing(false); setSaveError(null); setDateValue(match.scheduledAt?.slice(0, 16) ?? ''); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 11, padding: '4px 6px', borderRadius: 6 }}
+                >
+                  Cancelar
+                </button>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: 12, color: formattedDate ? '#64748b' : '#2d3748', flex: 1 }}>
+                  {formattedDate ?? 'Sin fecha asignada'}
+                </span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#334155', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '3px 6px', borderRadius: 6 }}
+                >
+                  <Pencil size={10} /> Editar
+                </button>
+              </>
+            )}
+          </div>
+          {saveError && <span style={{ fontSize: 11, color: '#f87171', paddingLeft: 19 }}>{saveError}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Standings Tab ────────────────────────────────────────────────────────────
+
+function StandingsTab({ teams, matches, format }: { teams: Team[]; matches: Match[]; format: string }) {
+  if (format !== 'ROUND_ROBIN') {
+    return <EmptyState icon={BarChart2} text="La tabla de posiciones solo aplica al formato Round Robin." />;
+  }
+
+  const rows = computeStandings(teams, matches);
+
+  if (rows.length === 0) {
+    return <EmptyState icon={BarChart2} text="Agregá equipos y generá el fixture para ver la tabla." />;
+  }
+
+  const col: React.CSSProperties = { padding: '10px 12px', fontSize: 13, fontVariantNumeric: 'tabular-nums' };
+  const hcol: React.CSSProperties = { ...col, fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' };
+
+  return (
+    <div style={{
+      borderRadius: 14, border: '1px solid rgba(255,255,255,0.07)',
+      background: 'rgba(255,255,255,0.02)', overflow: 'hidden',
+    }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            <th style={{ ...hcol, width: 32, textAlign: 'center' }}>#</th>
+            <th style={{ ...hcol, textAlign: 'left' }}>Equipo</th>
+            <th style={{ ...hcol, textAlign: 'center' }}>PJ</th>
+            <th style={{ ...hcol, textAlign: 'center' }}>G</th>
+            <th style={{ ...hcol, textAlign: 'center' }}>E</th>
+            <th style={{ ...hcol, textAlign: 'center' }}>P</th>
+            <th style={{ ...hcol, textAlign: 'center' }}>GF</th>
+            <th style={{ ...hcol, textAlign: 'center' }}>GC</th>
+            <th style={{ ...hcol, textAlign: 'center' }}>DG</th>
+            <th style={{ ...hcol, textAlign: 'center', color: '#10b981' }}>Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ team, played, won, drawn, lost, gf, ga, gd, pts }, i) => (
+            <tr
+              key={team?.id ?? i}
+              style={{
+                borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                background: i === 0 ? 'rgba(16,185,129,0.04)' : 'transparent',
+              }}
+            >
+              <td style={{ ...col, textAlign: 'center', color: i === 0 ? '#10b981' : '#64748b', fontWeight: 700 }}>{i + 1}</td>
+              <td style={{ ...col, color: '#f1f5f9', fontWeight: 600 }}>{team?.name ?? '—'}</td>
+              <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{played}</td>
+              <td style={{ ...col, textAlign: 'center', color: '#10b981', fontWeight: 600 }}>{won}</td>
+              <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{drawn}</td>
+              <td style={{ ...col, textAlign: 'center', color: '#ef4444' }}>{lost}</td>
+              <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{gf}</td>
+              <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{ga}</td>
+              <td style={{ ...col, textAlign: 'center', color: gd > 0 ? '#10b981' : gd < 0 ? '#ef4444' : '#94a3b8', fontWeight: 600 }}>
+                {gd > 0 ? `+${gd}` : gd}
+              </td>
+              <td style={{ ...col, textAlign: 'center', color: '#f8fafc', fontWeight: 800, fontSize: 15 }}>{pts}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── Shared primitives ────────────────────────────────────────────────────────
+
+function Badge({ label, color }: { label: string; color: string }) {
+  return (
+    <span style={{
+      fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 100,
+      color, background: `${color}18`,
+    }}>
+      {label}
+    </span>
+  );
+}
+
+function EmptyState({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
+  return (
+    <div style={{
+      padding: '50px 24px', textAlign: 'center',
+      background: 'rgba(255,255,255,0.02)',
+      border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16,
+    }}>
+      <Icon size={30} color="#334155" style={{ marginBottom: 12 }} />
+      <p style={{ fontSize: 14, color: '#475569', margin: 0 }}>{text}</p>
+    </div>
+  );
+}
+
+function Modal({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100,
+        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
+      }}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.96, y: 10 }}
+        transition={{ duration: 0.2 }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 420,
+          background: '#0d0d14', border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 20, padding: '24px 24px 20px',
+          boxShadow: '0 40px 80px rgba(0,0,0,0.5)', position: 'relative',
+        }}
+      >
+        <button onClick={onClose} style={{
+          position: 'absolute', top: 14, right: 14,
+          background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: 8, width: 28, height: 28,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: 'pointer', color: '#64748b',
+        }}>
+          <X size={14} />
+        </button>
+        {children}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) {
+  return (
+    <div style={style}>
+      <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#64748b', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+const modalTitle: React.CSSProperties = {
+  fontSize: 17, fontWeight: 700, color: '#f8fafc', margin: '0 0 20px', letterSpacing: '-0.3px',
+};
+
+const inputStyle: React.CSSProperties = {
+  width: '100%', background: 'rgba(255,255,255,0.05)',
+  border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
+  padding: '9px 12px', color: '#f1f5f9', fontSize: 14, outline: 'none',
+  boxSizing: 'border-box', fontFamily: 'inherit',
+};
