@@ -30,6 +30,10 @@ export class PaymentsRepository {
     return payment ?? null;
   }
 
+  async findByMatch(matchId: string) {
+    return this.db.select().from(schema.payments).where(eq(schema.payments.matchId, matchId));
+  }
+
   async review(id: string, status: 'APPROVED' | 'REJECTED', reviewedBy: string) {
     const [payment] = await this.db
       .update(schema.payments)

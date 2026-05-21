@@ -6,6 +6,7 @@ export type MatchStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'FINISHED';
 export type EventType = 'GOAL' | 'YELLOW_CARD' | 'RED_CARD' | 'SUBSTITUTION' | 'FOUL';
 export type FineStatus = 'PENDING' | 'PAID';
 export type PaymentStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+export type PaymentMethod = 'CASH' | 'TRANSFER';
 
 export interface User {
   id: string;
@@ -28,6 +29,7 @@ export interface Tournament {
   lateFine: number;
   courtFee: number;
   refereeFee: number;
+  refereeFeeEnabled: boolean;
   halfDurationMinutes: number;
   maxRosterSize: number;
   category: string | null;
@@ -101,9 +103,12 @@ export interface Fine {
 
 export interface Payment {
   id: string;
-  fineId: string;
+  fineId: string | null;
+  matchId: string | null;
   teamId: string;
-  receiptUrl: string;
+  method: PaymentMethod;
+  amount: number;
+  receiptUrl: string | null;
   status: PaymentStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;

@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { DRIZZLE } from '../../database/database.module';
 import * as schema from '../../database/schema';
@@ -41,5 +41,16 @@ export class FinesRepository {
       .where(eq(schema.fines.id, id))
       .returning();
     return fine;
+  }
+
+  async markMatchFinesAsPaid(teamId: string, matchId: string) {
+    return this.db
+      .update(schema.fines)
+      .set({ status: 'PAID' })
+      .where(and(
+        eq(schema.fines.teamId, teamId),
+        eq(schema.fines.matchId, matchId),
+        eq(schema.fines.status, 'PENDING'),
+      ));
   }
 }

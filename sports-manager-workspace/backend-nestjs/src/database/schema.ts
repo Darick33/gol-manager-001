@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, boolean, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, doublePrecision, boolean, timestamp, pgEnum } from 'drizzle-orm/pg-core';
 
 export const userRoleEnum = pgEnum('user_role', ['SUPER_ADMIN', 'VOCAL', 'DELEGATE']);
 export const tournamentFormatEnum = pgEnum('tournament_format', ['ROUND_ROBIN', 'GROUPS_ELIMINATION', 'DIRECT_ELIMINATION']);
@@ -8,6 +8,7 @@ export const matchStatusEnum = pgEnum('match_status', ['SCHEDULED', 'IN_PROGRESS
 export const eventTypeEnum = pgEnum('event_type', ['GOAL', 'YELLOW_CARD', 'RED_CARD', 'SUBSTITUTION', 'FOUL']);
 export const fineStatusEnum = pgEnum('fine_status', ['PENDING', 'PAID']);
 export const paymentStatusEnum = pgEnum('payment_status', ['PENDING', 'APPROVED', 'REJECTED']);
+export const paymentMethodEnum = pgEnum('payment_method', ['CASH', 'TRANSFER']);
 
 export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -29,11 +30,12 @@ export const tournaments = pgTable('tournaments', {
   maxRosterSize: integer('max_roster_size').notNull(),
   category: varchar('category', { length: 100 }),
   status: tournamentStatusEnum('status').default('DRAFT').notNull(),
-  yellowCardFine: integer('yellow_card_fine').default(2000).notNull(),
-  redCardFine: integer('red_card_fine').default(5000).notNull(),
-  lateFine: integer('late_fine').default(10000).notNull(),
-  courtFee: integer('court_fee').default(0).notNull(),
-  refereeFee: integer('referee_fee').default(0).notNull(),
+  yellowCardFine: doublePrecision('yellow_card_fine').default(2000).notNull(),
+  redCardFine: doublePrecision('red_card_fine').default(5000).notNull(),
+  lateFine: doublePrecision('late_fine').default(10000).notNull(),
+  courtFee: doublePrecision('court_fee').default(0).notNull(),
+  refereeFee: doublePrecision('referee_fee').default(0).notNull(),
+  refereeFeeEnabled: boolean('referee_fee_enabled').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 
@@ -95,7 +97,7 @@ export const fines = pgTable('fines', {
   tournamentId: uuid('tournament_id').notNull().references(() => tournaments.id),
   matchId: uuid('match_id').references(() => matches.id),
   matchEventId: uuid('match_event_id').references(() => matchEvents.id),
-  amount: integer('amount').notNull(),
+  amount: doublePrecision('amount').notNull(),
   reason: text('reason').notNull(),
   half: integer('half').default(1).notNull(),
   status: fineStatusEnum('status').default('PENDING').notNull(),
@@ -104,9 +106,12 @@ export const fines = pgTable('fines', {
 
 export const payments = pgTable('payments', {
   id: uuid('id').primaryKey().defaultRandom(),
-  fineId: uuid('fine_id').notNull().references(() => fines.id),
+  fineId: uuid('fine_id').references(() => fines.id),
+  matchId: uuid('match_id').references(() => matches.id),
   teamId: uuid('team_id').notNull().references(() => teams.id),
-  receiptUrl: text('receipt_url').notNull(),
+  method: paymentMethodEnum('method').default('TRANSFER').notNull(),
+  amount: doublePrecision('amount').default(0).notNull(),
+  receiptUrl: text('receipt_url'),
   status: paymentStatusEnum('status').default('PENDING').notNull(),
   reviewedBy: uuid('reviewed_by').references(() => users.id),
   reviewedAt: timestamp('reviewed_at'),

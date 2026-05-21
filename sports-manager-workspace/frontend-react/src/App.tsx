@@ -7,6 +7,10 @@ import DashboardPage from './pages/admin/DashboardPage';
 import TournamentsPage from './pages/admin/TournamentsPage';
 import TournamentDetailPage from './pages/admin/TournamentDetailPage';
 import VocaliaPage from './pages/admin/VocaliaPage';
+import MatchesPage from './pages/admin/MatchesPage';
+import TeamsPage from './pages/admin/TeamsPage';
+import FinesPage from './pages/admin/FinesPage';
+import PaymentsPage from './pages/admin/PaymentsPage';
 
 export default function App() {
   return (
@@ -35,6 +39,10 @@ export default function App() {
         <Route index element={<DashboardPage />} />
         <Route path="tournaments" element={<TournamentsPage />} />
         <Route path="tournaments/:id" element={<TournamentDetailPage />} />
+        <Route path="matches" element={<MatchesPage />} />
+        <Route path="teams" element={<TeamsPage />} />
+        <Route path="fines" element={<FinesPage />} />
+        <Route path="payments" element={<PaymentsPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

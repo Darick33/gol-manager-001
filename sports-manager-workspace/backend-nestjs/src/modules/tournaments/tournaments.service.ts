@@ -32,6 +32,7 @@ export class TournamentsService {
       ...(dto.lateFine !== undefined && { lateFine: dto.lateFine }),
       ...(dto.courtFee !== undefined && { courtFee: dto.courtFee }),
       ...(dto.refereeFee !== undefined && { refereeFee: dto.refereeFee }),
+      ...(dto.refereeFeeEnabled !== undefined && { refereeFeeEnabled: dto.refereeFeeEnabled }),
     });
   }
 

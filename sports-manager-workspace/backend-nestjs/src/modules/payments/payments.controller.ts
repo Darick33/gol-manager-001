@@ -2,13 +2,27 @@ import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/co
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { CreateMatchPaymentDto } from './dto/create-match-payment.dto';
 import { PaymentsService } from './payments.service';
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
 
-  // Delegate uploads a receipt for a specific fine
+  @Post('match')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'VOCAL')
+  registerMatchPayment(@Body() dto: CreateMatchPaymentDto) {
+    return this.paymentsService.registerMatchPayment(dto);
+  }
+
+  @Get('match/:matchId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'VOCAL')
+  findByMatch(@Param('matchId') matchId: string) {
+    return this.paymentsService.findByMatch(matchId);
+  }
+
   @Post('fine/:fineId/team/:teamId')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('DELEGATE', 'SUPER_ADMIN')

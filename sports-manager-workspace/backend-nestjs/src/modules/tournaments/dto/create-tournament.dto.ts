@@ -1,4 +1,4 @@
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateTournamentDto {
   @IsString()
@@ -26,28 +26,32 @@ export class CreateTournamentDto {
   @IsOptional()
   slug?: string;
 
-  @IsInt()
+  @IsNumber()
   @Min(0)
   @IsOptional()
   yellowCardFine?: number;
 
-  @IsInt()
+  @IsNumber()
   @Min(0)
   @IsOptional()
   redCardFine?: number;
 
-  @IsInt()
+  @IsNumber()
   @Min(0)
   @IsOptional()
   lateFine?: number;
 
-  @IsInt()
+  @IsNumber()
   @Min(0)
   @IsOptional()
   courtFee?: number;
 
-  @IsInt()
+  @IsNumber()
   @Min(0)
   @IsOptional()
   refereeFee?: number;
+
+  @IsBoolean()
+  @IsOptional()
+  refereeFeeEnabled?: boolean;
 }

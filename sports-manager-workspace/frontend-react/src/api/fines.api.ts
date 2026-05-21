@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { Fine, Payment } from '../types';
+import type { Fine, Payment, PaymentMethod } from '../types';
 
 export const finesApi = {
   listByTournament: (tournamentId: string) =>
@@ -16,6 +16,10 @@ export const paymentsApi = {
   listPending: () => apiClient.get<Payment[]>('/payments/pending').then((r) => r.data),
   listByTeam: (teamId: string) =>
     apiClient.get<Payment[]>(`/payments/team/${teamId}`).then((r) => r.data),
+  listByMatch: (matchId: string) =>
+    apiClient.get<Payment[]>(`/payments/match/${matchId}`).then((r) => r.data),
+  registerMatchPayment: (dto: { matchId: string; teamId: string; method: PaymentMethod; amount: number; receiptUrl?: string }) =>
+    apiClient.post<Payment>('/payments/match', dto).then((r) => r.data),
   approve: (id: string, adminId: string) =>
     apiClient.patch<Payment>(`/payments/${id}/approve`, { adminId }).then((r) => r.data),
   reject: (id: string, adminId: string) =>

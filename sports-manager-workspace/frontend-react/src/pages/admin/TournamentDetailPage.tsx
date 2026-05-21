@@ -5,13 +5,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Trophy, Users, Calendar, BarChart2, Plus,
   ChevronDown, ChevronUp, X, Loader2, Play, Swords, Shield,
-  Pencil, Check, ExternalLink, FileDown,
+  Check, ExternalLink, FileDown, Settings, Pencil,
 } from 'lucide-react';
 import { tournamentsApi } from '../../api/tournaments.api';
 import { teamsApi, playersApi } from '../../api/teams.api';
 import { matchesApi } from '../../api/matches.api';
 import { Button } from '../../components/ui/button';
 import { ImageUpload } from '../../components/ui/ImageUpload';
+import { TournamentConfigTab } from './TournamentConfigTab';
+import { PaymentModal } from '../../components/ui/PaymentModal';
 import type { Team, Match, Player, MatchEvent } from '../../types';
 
 const SPORT_LABEL = { FOOTBALL: 'Fútbol', FUTSAL: 'Fútbol Sala' };
@@ -31,7 +33,7 @@ const MATCH_STATUS = {
   FINISHED:    { label: 'Finalizado', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
 };
 
-type Tab = 'teams' | 'fixture' | 'standings';
+type Tab = 'teams' | 'fixture' | 'standings' | 'config';
 
 function computeStandings(teams: Team[], matches: Match[]) {
   const stats: Record<string, { played: number; won: number; drawn: number; lost: number; gf: number; ga: number; pts: number }> = {};
@@ -65,7 +67,16 @@ export default function TournamentDetailPage() {
   const [showAddPlayer, setShowAddPlayer] = useState<string | null>(null); // teamId
   const [playerForm, setPlayerForm] = useState({ name: '', dorsal: '' });
   const [playerPhotoUrl, setPlayerPhotoUrl] = useState<string | null>(null);
+  const [showEditPlayer, setShowEditPlayer] = useState<Player | null>(null);
+  const [editPlayerForm, setEditPlayerForm] = useState({ name: '', dorsal: '' });
+  const [editPlayerPhotoUrl, setEditPlayerPhotoUrl] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+
+  const handleEditPlayer = (player: Player) => {
+    setShowEditPlayer(player);
+    setEditPlayerForm({ name: player.name, dorsal: String(player.dorsal) });
+    setEditPlayerPhotoUrl(player.photoUrl);
+  };
 
   const { data: tournament, isLoading } = useQuery({
     queryKey: ['tournament', id],
@@ -122,6 +133,29 @@ export default function TournamentDetailPage() {
     onError,
   });
 
+  const updatePlayer = useMutation({
+    mutationFn: () => playersApi.update(showEditPlayer!.id, {
+      name: editPlayerForm.name.trim(),
+      dorsal: Number(editPlayerForm.dorsal),
+      photoUrl: editPlayerPhotoUrl,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['team-players', showEditPlayer!.teamId] });
+      setShowEditPlayer(null);
+      setEditPlayerPhotoUrl(null);
+    },
+    onError,
+  });
+
+  const updateConfig = useMutation({
+    mutationFn: (data: Parameters<typeof tournamentsApi.update>[1]) =>
+      tournamentsApi.update(id!, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournament', id] });
+    },
+    onError,
+  });
+
   const generateFixture = useMutation({
     mutationFn: () => tournamentsApi.generateFixture(id!),
     onSuccess: () => {
@@ -163,9 +197,10 @@ export default function TournamentDetailPage() {
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
 
   const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
-    { key: 'teams',    label: 'Equipos',    icon: Users    },
-    { key: 'fixture',  label: 'Fixture',    icon: Calendar },
-    { key: 'standings', label: 'Posiciones', icon: BarChart2 },
+    { key: 'teams',     label: 'Equipos',       icon: Users    },
+    { key: 'fixture',   label: 'Fixture',       icon: Calendar },
+    { key: 'standings', label: 'Posiciones',    icon: BarChart2 },
+    { key: 'config',    label: 'Configuración', icon: Settings },
   ];
 
   return (
@@ -293,6 +328,7 @@ export default function TournamentDetailPage() {
               teams={teams}
               onAddTeam={() => setShowAddTeam(true)}
               onAddPlayer={(teamId) => setShowAddPlayer(teamId)}
+              onEditPlayer={handleEditPlayer}
               tournamentId={id!}
             />
           )}
@@ -309,6 +345,13 @@ export default function TournamentDetailPage() {
           )}
           {tab === 'standings' && (
             <StandingsTab teams={teams} matches={matches} format={tournament.format} />
+          )}
+          {tab === 'config' && (
+            <TournamentConfigTab
+              tournament={tournament}
+              onSave={(data) => updateConfig.mutateAsync(data)}
+              isSaving={updateConfig.isPending}
+            />
           )}
         </motion.div>
       </AnimatePresence>
@@ -382,6 +425,46 @@ export default function TournamentDetailPage() {
         )}
       </AnimatePresence>
 
+      {/* Edit player modal */}
+      <AnimatePresence>
+        {showEditPlayer && (
+          <Modal onClose={() => { setShowEditPlayer(null); setEditPlayerPhotoUrl(null); }}>
+            <h2 style={modalTitle}>Editar jugador</h2>
+            <form onSubmit={(e) => { e.preventDefault(); updatePlayer.mutate(); }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ paddingTop: 20 }}>
+                  <ImageUpload value={editPlayerPhotoUrl} onChange={setEditPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" />
+                </div>
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Field label="Nombre">
+                    <input
+                      value={editPlayerForm.name}
+                      onChange={(e) => setEditPlayerForm({ ...editPlayerForm, name: e.target.value })}
+                      required placeholder="Juan García" style={inputStyle} autoFocus
+                    />
+                  </Field>
+                  <Field label="Dorsal">
+                    <input
+                      type="number" min={1} max={99}
+                      value={editPlayerForm.dorsal}
+                      onChange={(e) => setEditPlayerForm({ ...editPlayerForm, dorsal: e.target.value })}
+                      required placeholder="10" style={inputStyle}
+                    />
+                  </Field>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Button variant="outline" type="button" onClick={() => { setShowEditPlayer(null); setEditPlayerPhotoUrl(null); }}>Cancelar</Button>
+                <Button type="submit" disabled={updatePlayer.isPending}>
+                  {updatePlayer.isPending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Guardar cambios'}
+                </Button>
+              </div>
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
+
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes pulse-live { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(1.35); } }
@@ -392,10 +475,11 @@ export default function TournamentDetailPage() {
 
 // ─── Teams Tab ────────────────────────────────────────────────────────────────
 
-function TeamsTab({ teams, onAddTeam, onAddPlayer, tournamentId }: {
+function TeamsTab({ teams, onAddTeam, onAddPlayer, onEditPlayer, tournamentId }: {
   teams: Team[];
   onAddTeam: () => void;
   onAddPlayer: (teamId: string) => void;
+  onEditPlayer: (player: Player) => void;
   tournamentId: string;
 }) {
   return (
@@ -416,7 +500,7 @@ function TeamsTab({ teams, onAddTeam, onAddPlayer, tournamentId }: {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05, duration: 0.3 }}
             >
-              <TeamCard team={team} onAddPlayer={() => onAddPlayer(team.id)} />
+              <TeamCard team={team} onAddPlayer={() => onAddPlayer(team.id)} onEditPlayer={onEditPlayer} />
             </motion.div>
           ))}
         </div>
@@ -425,7 +509,7 @@ function TeamsTab({ teams, onAddTeam, onAddPlayer, tournamentId }: {
   );
 }
 
-function TeamCard({ team, onAddPlayer }: { team: Team; onAddPlayer: () => void }) {
+function TeamCard({ team, onAddPlayer, onEditPlayer }: { team: Team; onAddPlayer: () => void; onEditPlayer: (player: Player) => void }) {
   const [expanded, setExpanded] = useState(false);
   const { data: players = [], isLoading } = useQuery({
     queryKey: ['team-players', team.id],
@@ -488,7 +572,7 @@ function TeamCard({ team, onAddPlayer }: { team: Team; onAddPlayer: () => void }
                 <p style={{ fontSize: 13, color: '#475569', margin: '0 0 12px' }}>Sin jugadores aún.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-                  {players.map((p) => <PlayerRow key={p.id} player={p} />)}
+                  {players.map((p) => <PlayerRow key={p.id} player={p} onEdit={() => onEditPlayer(p)} />)}
                 </div>
               )}
               <Button variant="outline" onClick={onAddPlayer}>
@@ -502,92 +586,20 @@ function TeamCard({ team, onAddPlayer }: { team: Team; onAddPlayer: () => void }
   );
 }
 
-function PlayerRow({ player }: { player: Player }) {
-  const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(player.name);
-  const [editDorsal, setEditDorsal] = useState(String(player.dorsal));
-  const [editError, setEditError] = useState<string | null>(null);
-
-  const updatePlayer = useMutation({
-    mutationFn: () => playersApi.update(player.id, {
-      name: editName.trim(),
-      dorsal: Number(editDorsal),
-    }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['team-players', player.teamId] });
-      setEditing(false);
-      setEditError(null);
-    },
-    onError: (err: unknown) => {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Error al guardar';
-      setEditError(Array.isArray(msg) ? msg[0] : msg);
-      setTimeout(() => setEditError(null), 3000);
-    },
-  });
-
-  if (editing) {
-    return (
-      <div style={{
-        display: 'flex', flexDirection: 'column', gap: 8,
-        padding: '8px 10px', borderRadius: 8,
-        background: 'rgba(16,185,129,0.04)',
-        border: '1px solid rgba(16,185,129,0.12)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <input
-            value={editDorsal}
-            onChange={(e) => setEditDorsal(e.target.value)}
-            type="number" min={1} max={99}
-            style={{
-              ...inputStyle, width: 56, padding: '5px 8px', fontSize: 12,
-              textAlign: 'center',
-            }}
-          />
-          <input
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            autoFocus
-            style={{ ...inputStyle, flex: 1, padding: '5px 10px', fontSize: 13 }}
-          />
-          <button
-            onClick={() => updatePlayer.mutate()}
-            disabled={updatePlayer.isPending}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.3)',
-              borderRadius: 7, padding: '5px 10px',
-              color: '#10b981', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0,
-            }}
-          >
-            {updatePlayer.isPending
-              ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
-              : <><Check size={12} /> Guardar</>}
-          </button>
-          <button
-            onClick={() => { setEditing(false); setEditName(player.name); setEditDorsal(String(player.dorsal)); }}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: '#475569', padding: '5px 6px', borderRadius: 6, fontSize: 12, flexShrink: 0,
-            }}
-          >
-            Cancelar
-          </button>
-        </div>
-        {editError && (
-          <span style={{ fontSize: 11, color: '#f87171', paddingLeft: 4 }}>{editError}</span>
-        )}
-      </div>
-    );
-  }
-
+function PlayerRow({ player, onEdit }: { player: Player; onEdit: () => void }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '6px 10px', borderRadius: 8,
-      background: 'rgba(255,255,255,0.02)',
-      transition: 'background 0.12s',
-    }}>
+    <div
+      onClick={onEdit}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '6px 10px', borderRadius: 8,
+        background: 'rgba(255,255,255,0.02)',
+        cursor: 'pointer',
+        transition: 'background 0.12s',
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)'; }}
+    >
       {player.photoUrl ? (
         <img src={player.photoUrl} alt={player.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
       ) : (
@@ -600,20 +612,6 @@ function PlayerRow({ player }: { player: Player }) {
         #{player.dorsal}
       </span>
       <span style={{ fontSize: 13, color: '#cbd5e1', fontWeight: 500, flex: 1 }}>{player.name}</span>
-      <button
-        onClick={() => setEditing(true)}
-        style={{
-          background: 'none', border: 'none', cursor: 'pointer',
-          color: '#334155', padding: '4px 6px', borderRadius: 6,
-          display: 'flex', alignItems: 'center',
-          transition: 'color 0.15s',
-          flexShrink: 0,
-        }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#64748b'; }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#334155'; }}
-      >
-        <Pencil size={12} />
-      </button>
     </div>
   );
 }
@@ -812,6 +810,7 @@ function MatchCard({ match, teamMap }: { match: Match; teamMap: Record<string, T
   const [dateValue, setDateValue] = useState(match.scheduledAt ? match.scheduledAt.slice(0, 16) : '');
   const [saveError, setSaveError] = useState<string | null>(null);
   const [downloadingActa, setDownloadingActa] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
 
   const handleDownloadActa = async () => {
     setDownloadingActa(true);
@@ -1105,7 +1104,7 @@ function MatchCard({ match, teamMap }: { match: Match; teamMap: Record<string, T
         <div style={{
           borderTop: '1px solid rgba(255,255,255,0.04)',
           padding: '8px 16px',
-          display: 'flex', justifyContent: 'center',
+          display: 'flex', justifyContent: 'center', gap: 8,
           background: 'rgba(0,0,0,0.12)',
         }}>
           <button
@@ -1122,6 +1121,17 @@ function MatchCard({ match, teamMap }: { match: Match; teamMap: Record<string, T
             {downloadingActa
               ? <><Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> Descargando...</>
               : <><FileDown size={11} /> Descargar Acta</>}
+          </button>
+          <button
+            onClick={() => setShowPayment(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
+              borderRadius: 8, padding: '6px 16px',
+              color: '#a5b4fc', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}
+          >
+            💳 Registrar pago
           </button>
         </div>
       ) : (
@@ -1176,6 +1186,17 @@ function MatchCard({ match, teamMap }: { match: Match; teamMap: Record<string, T
           {saveError && <span style={{ fontSize: 11, color: '#f87171', paddingLeft: 19 }}>{saveError}</span>}
         </div>
       )}
+      <AnimatePresence>
+        {showPayment && (
+          <PaymentModal
+            matchId={match.id}
+            homeTeam={home ?? null}
+            awayTeam={away ?? null}
+            onClose={() => setShowPayment(false)}
+            onSuccess={() => qc.invalidateQueries({ queryKey: ['match-events', match.id] })}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

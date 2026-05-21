@@ -16,6 +16,7 @@ import {
 import type { Match, MatchEvent, Team, Player, EventType, Tournament, Fine } from '../../types';
 import { apiClient } from '../../api/client';
 import { finesApi } from '../../api/fines.api';
+import { PaymentModal } from '../../components/ui/PaymentModal';
 
 type MobileTab = 'match' | 'fines' | 'controls';
 
@@ -78,6 +79,8 @@ export default function VocaliaPage() {
   const [fineAmount, setFineAmount] = useState(0);
   const [fineSaving, setFineSaving] = useState(false);
   const [fineSuccess, setFineSuccess] = useState(false);
+
+  const [paymentTeamId, setPaymentTeamId] = useState<string | null>(null);
 
   const fetchFines = useCallback(async () => {
     if (!matchId) return;
@@ -221,6 +224,19 @@ export default function VocaliaPage() {
   const statusColor = matchClosed ? 'text-purple-400'
     : isInProgress ? (halfEnded ? 'text-amber-400' : 'text-green-400')
     : 'text-gray-500';
+
+  const refFee = tournament?.refereeFeeEnabled ? (tournament.refereeFee ?? 0) : 0;
+  const pendingForTeam = (tid: string) => {
+    const finesTotal = fines.filter((f) => f.teamId === tid && f.status === 'PENDING').reduce((s, f) => s + f.amount, 0);
+    return finesTotal + refFee;
+  };
+  const buildBreakdown = (tid: string) => {
+    const finesTotal = fines.filter((f) => f.teamId === tid && f.status === 'PENDING').reduce((s, f) => s + f.amount, 0);
+    const lines: string[] = [];
+    if (finesTotal > 0) lines.push(`Multas: ${fmt(finesTotal)}`);
+    if (refFee > 0) lines.push(`Árbitro: ${fmt(refFee)}`);
+    return lines.join('\n');
+  };
 
   if (!match) {
     return (
@@ -461,6 +477,32 @@ export default function VocaliaPage() {
                   </button>
                 </motion.div>
               )}
+              {matchClosed && (pendingForTeam(match.homeTeamId) > 0 || pendingForTeam(match.awayTeamId) > 0) && (
+                <div className="border-t border-gray-800 pt-4 space-y-3">
+                  <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Pagos pendientes</p>
+                  {[
+                    { team: homeTeam, id: match.homeTeamId },
+                    { team: awayTeam, id: match.awayTeamId },
+                  ].map(({ team, id }) => {
+                    const total = pendingForTeam(id);
+                    if (total <= 0) return null;
+                    return (
+                      <div key={id} className="flex items-center justify-between bg-gray-900 rounded-xl px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{team?.name ?? 'Equipo'}</p>
+                          <p className="text-xs text-amber-400 font-bold tabular-nums">{fmt(total)}</p>
+                        </div>
+                        <button
+                          onClick={() => setPaymentTeamId(id)}
+                          className="bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold py-2 px-4 min-h-[36px] rounded-lg transition-colors"
+                        >
+                          Registrar pago
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -674,13 +716,39 @@ export default function VocaliaPage() {
           {canRegisterEvents && <div className="w-full max-w-sm">{EventButtons}</div>}
 
           {matchClosed && (
-            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-3 text-center mt-4">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center gap-3 text-center mt-4 w-full max-w-sm">
               <CheckCircle className="w-14 h-14 text-green-400" />
               <p className="text-lg font-bold">Partido finalizado</p>
               <p className="text-sm text-gray-500 max-w-xs">El acta fue generada y enviada por WhatsApp al delegado del equipo local.</p>
               <button onClick={downloadActa} className="mt-2 bg-indigo-900 hover:bg-indigo-800 border border-indigo-700 text-indigo-300 hover:text-white font-semibold text-sm py-3 px-6 rounded-xl transition-all">
                 Descargar Acta PDF
               </button>
+              {(pendingForTeam(match.homeTeamId) > 0 || pendingForTeam(match.awayTeamId) > 0) && (
+                <div className="w-full border-t border-gray-800 pt-4 mt-2 space-y-2">
+                  <p className="text-[10px] font-bold text-gray-600 uppercase tracking-widest text-left">Pagos pendientes</p>
+                  {[
+                    { team: homeTeam, id: match.homeTeamId },
+                    { team: awayTeam, id: match.awayTeamId },
+                  ].map(({ team, id }) => {
+                    const total = pendingForTeam(id);
+                    if (total <= 0) return null;
+                    return (
+                      <div key={id} className="flex items-center justify-between bg-gray-900 rounded-xl px-4 py-3">
+                        <div className="text-left">
+                          <p className="text-sm font-semibold text-white">{team?.name ?? 'Equipo'}</p>
+                          <p className="text-xs text-amber-400 font-bold tabular-nums">{fmt(total)}</p>
+                        </div>
+                        <button
+                          onClick={() => setPaymentTeamId(id)}
+                          className="bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-semibold py-2 px-4 min-h-[36px] rounded-lg transition-colors"
+                        >
+                          Registrar pago
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </motion.div>
           )}
         </div>
@@ -750,6 +818,22 @@ export default function VocaliaPage() {
               )}
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Payment modal ── */}
+      <AnimatePresence>
+        {paymentTeamId && match && (
+          <PaymentModal
+            matchId={match.id}
+            homeTeam={homeTeam}
+            awayTeam={awayTeam}
+            defaultTeamId={paymentTeamId}
+            defaultAmount={pendingForTeam(paymentTeamId)}
+            amountBreakdown={buildBreakdown(paymentTeamId)}
+            onClose={() => setPaymentTeamId(null)}
+            onSuccess={fetchFines}
+          />
         )}
       </AnimatePresence>
 
