@@ -6,6 +6,9 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { FinesModule } from './modules/fines/fines.module';
 import { MatchesModule } from './modules/matches/matches.module';
+import { BalanceModule } from './modules/balance/balance.module';
+import { RoundsModule } from './modules/rounds/rounds.module';
+import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { PdfModule } from './modules/pdf/pdf.module';
@@ -28,6 +31,9 @@ import { UsersModule } from './modules/users/users.module';
     PaymentsModule,
     PdfModule,
     NotificationsModule,
+    CloudinaryModule,
+    BalanceModule,
+    RoundsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

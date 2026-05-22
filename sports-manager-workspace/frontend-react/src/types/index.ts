@@ -115,6 +115,47 @@ export interface Payment {
   createdAt: string;
 }
 
+export type BalanceLedgerType = 'MATCH_CHARGE' | 'FINE_CHARGE' | 'PAYMENT_CREDIT' | 'ADJUSTMENT';
+
+export interface TeamBalance {
+  id: string;
+  teamId: string;
+  tournamentId: string;
+  balance: number;
+  updatedAt: string;
+}
+
+export interface LedgerEntry {
+  id: string;
+  teamId: string;
+  tournamentId: string;
+  matchId: string | null;
+  fineId: string | null;
+  paymentId: string | null;
+  type: BalanceLedgerType;
+  amount: number;
+  description: string;
+  createdAt: string;
+}
+
+export interface TeamBalanceSummary {
+  balance: number;
+  ledger: LedgerEntry[];
+}
+
+export type RoundStatus = 'OPEN' | 'CLOSED';
+
+export interface TournamentRound {
+  id: string;
+  tournamentId: string;
+  stage: number;
+  name: string | null;
+  status: RoundStatus;
+  closedAt: string | null;
+  closedById: string | null;
+  createdAt: string;
+}
+
 export interface AuthResponse {
   access_token: string;
   user: User;

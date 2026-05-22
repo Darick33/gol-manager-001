@@ -1,6 +1,8 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { BalanceModule } from '../balance/balance.module';
 import { FinesModule } from '../fines/fines.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { PaymentsModule } from '../payments/payments.module';
 import { PdfModule } from '../pdf/pdf.module';
 import { TeamsModule } from '../teams/teams.module';
 import { TournamentsModule } from '../tournaments/tournaments.module';
@@ -12,7 +14,7 @@ import { MatchTimerService } from './vocalia/match-timer.service';
 import { VocaliaGateway } from './vocalia/vocalia.gateway';
 
 @Module({
-  imports: [TeamsModule, UsersModule, FinesModule, PdfModule, NotificationsModule, forwardRef(() => TournamentsModule)],
+  imports: [TeamsModule, UsersModule, FinesModule, PdfModule, NotificationsModule, PaymentsModule, BalanceModule, forwardRef(() => TournamentsModule)],
   providers: [MatchesRepository, MatchEventsRepository, MatchTimerService, VocaliaGateway],
   controllers: [MatchesController],
   exports: [MatchesRepository, MatchEventsRepository],

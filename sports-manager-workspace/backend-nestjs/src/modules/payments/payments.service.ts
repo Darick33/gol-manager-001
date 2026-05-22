@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { BalanceService } from '../balance/balance.service';
 import { FinesRepository } from '../fines/fines.repository';
 import { WhatsappService } from '../notifications/whatsapp.service';
 import { CreateMatchPaymentDto } from './dto/create-match-payment.dto';
@@ -10,6 +11,7 @@ export class PaymentsService {
     private paymentsRepository: PaymentsRepository,
     private finesRepository: FinesRepository,
     private whatsappService: WhatsappService,
+    private balanceService: BalanceService,
   ) {}
 
   async uploadReceipt(fineId: string, teamId: string, receiptUrl: string) {
@@ -23,6 +25,7 @@ export class PaymentsService {
     const payment = await this.paymentsRepository.create({
       matchId: dto.matchId,
       teamId: dto.teamId,
+      tournamentId: dto.tournamentId,
       method: dto.method,
       amount: dto.amount,
       receiptUrl: dto.receiptUrl ?? null,
@@ -31,6 +34,13 @@ export class PaymentsService {
 
     if (dto.method === 'CASH') {
       await this.finesRepository.markMatchFinesAsPaid(dto.teamId, dto.matchId);
+      await this.balanceService.applyPayment({
+        teamId: dto.teamId,
+        tournamentId: dto.tournamentId,
+        matchId: dto.matchId,
+        paymentId: payment.id,
+        amount: dto.amount,
+      });
     }
 
     return payment;
@@ -65,6 +75,16 @@ export class PaymentsService {
         await this.finesRepository.markAsPaid(payment.fineId);
       } else if (payment.matchId) {
         await this.finesRepository.markMatchFinesAsPaid(payment.teamId, payment.matchId);
+      }
+
+      if (payment.tournamentId && payment.matchId) {
+        await this.balanceService.applyPayment({
+          teamId: payment.teamId,
+          tournamentId: payment.tournamentId,
+          matchId: payment.matchId,
+          paymentId: payment.id,
+          amount: payment.amount,
+        });
       }
 
       if (delegatePhone && teamName) {

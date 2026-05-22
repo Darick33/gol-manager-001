@@ -1,25 +1,13 @@
-export async function uploadToCloudinary(file: File): Promise<string> {
-  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME as string;
-  const preset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET as string;
+import { apiClient } from '../api/client';
 
-  if (!cloudName || !preset) {
-    throw new Error('Cloudinary no está configurado. Agregá VITE_CLOUDINARY_CLOUD_NAME y VITE_CLOUDINARY_UPLOAD_PRESET al .env.local');
-  }
+export async function uploadToCloudinary(file: File, folder = 'general'): Promise<string> {
+  const formData = new FormData();
+  formData.append('file', file);
 
-  const body = new FormData();
-  body.append('file', file);
-  body.append('upload_preset', preset);
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-    method: 'POST',
-    body,
+  const { data } = await apiClient.post<{ url: string }>('/upload', formData, {
+    params: { folder },
+    headers: { 'Content-Type': undefined }, // let browser set multipart/form-data with boundary
   });
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: { message?: string } }).error?.message ?? 'Error al subir la imagen');
-  }
-
-  const data = await res.json() as { secure_url: string };
-  return data.secure_url;
+  return data.url;
 }

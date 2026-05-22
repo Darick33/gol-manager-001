@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { BalanceService } from '../balance/balance.service';
 import { WhatsappService } from '../notifications/whatsapp.service';
 import { CreateFineDto } from './dto/create-fine.dto';
 import { FinesRepository } from './fines.repository';
@@ -20,10 +21,22 @@ export class FinesService {
   constructor(
     private finesRepository: FinesRepository,
     private whatsappService: WhatsappService,
+    private balanceService: BalanceService,
   ) {}
 
   async create(dto: CreateFineDto) {
-    return this.finesRepository.create(dto);
+    const fine = await this.finesRepository.create(dto);
+    if (fine.matchId) {
+      await this.balanceService.chargeFine({
+        teamId: fine.teamId,
+        tournamentId: fine.tournamentId,
+        matchId: fine.matchId,
+        fineId: fine.id,
+        amount: fine.amount,
+        reason: fine.reason,
+      });
+    }
+    return fine;
   }
 
   async createFromEvent(payload: AutoFinePayload) {
@@ -39,6 +52,15 @@ export class FinesService {
       matchEventId: payload.matchEventId,
       amount: payload.amount,
       half: payload.half,
+      reason,
+    });
+
+    await this.balanceService.chargeFine({
+      teamId: payload.teamId,
+      tournamentId: payload.tournamentId,
+      matchId: payload.matchId,
+      fineId: fine.id,
+      amount: payload.amount,
       reason,
     });
 

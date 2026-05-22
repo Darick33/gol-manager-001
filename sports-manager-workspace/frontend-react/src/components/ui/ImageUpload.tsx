@@ -8,9 +8,10 @@ interface ImageUploadProps {
   shape?: 'circle' | 'square';
   size?: number;
   placeholder?: string;
+  folder?: string;
 }
 
-export function ImageUpload({ value, onChange, shape = 'square', size = 72, placeholder }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, shape = 'square', size = 72, placeholder, folder = 'general' }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +31,7 @@ export function ImageUpload({ value, onChange, shape = 'square', size = 72, plac
     setError(null);
     setUploading(true);
     try {
-      const url = await uploadToCloudinary(file);
+      const url = await uploadToCloudinary(file, folder);
       onChange(url);
     } catch (e) {
       setError((e as Error).message ?? 'Error al subir');

@@ -7,8 +7,10 @@ import {
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { BalanceService } from '../../balance/balance.service';
 import { FinesService } from '../../fines/fines.service';
 import { WhatsappService } from '../../notifications/whatsapp.service';
+import { PaymentsRepository } from '../../payments/payments.repository';
 import { PdfService } from '../../pdf/pdf.service';
 import { TeamsRepository } from '../../teams/teams.repository';
 import { TournamentsRepository } from '../../tournaments/tournaments.repository';
@@ -32,6 +34,8 @@ export class VocaliaGateway implements OnGatewayInit {
     private finesService: FinesService,
     private pdfService: PdfService,
     private whatsappService: WhatsappService,
+    private paymentsRepository: PaymentsRepository,
+    private balanceService: BalanceService,
   ) {}
 
   afterInit(server: Server) {
@@ -133,13 +137,47 @@ export class VocaliaGateway implements OnGatewayInit {
     // 2. Notificar a todos los clientes inmediatamente
     this.server.to(`match:${data.matchId}`).emit('match_closed', { match: closedMatch });
 
-    // 3. PDF + WhatsApp en best-effort: si falla, el partido ya está cerrado
+    // 3. Cobros de cancha + árbitro en best-effort
     try {
-      const [tournament, events, homeTeam, awayTeam] = await Promise.all([
+      const tournamentForFees = await this.tournamentsRepository.findById(match.tournamentId);
+      if (tournamentForFees) {
+        const [homeTeamForFees, awayTeamForFees] = await Promise.all([
+          this.teamsRepository.findById(match.homeTeamId),
+          this.teamsRepository.findById(match.awayTeamId),
+        ]);
+        await Promise.all([
+          this.balanceService.chargeMatchFees({
+            teamId: match.homeTeamId,
+            tournamentId: match.tournamentId,
+            matchId: data.matchId,
+            courtFee: tournamentForFees.courtFee,
+            refereeFee: tournamentForFees.refereeFee,
+            refereeFeeEnabled: tournamentForFees.refereeFeeEnabled,
+            opponentName: awayTeamForFees?.name ?? 'Visitante',
+          }),
+          this.balanceService.chargeMatchFees({
+            teamId: match.awayTeamId,
+            tournamentId: match.tournamentId,
+            matchId: data.matchId,
+            courtFee: tournamentForFees.courtFee,
+            refereeFee: tournamentForFees.refereeFee,
+            refereeFeeEnabled: tournamentForFees.refereeFeeEnabled,
+            opponentName: homeTeamForFees?.name ?? 'Local',
+          }),
+        ]);
+      }
+    } catch (err) {
+      console.error('[close_match] Error cargando fees al saldo:', err);
+    }
+
+    // 4. PDF + WhatsApp en best-effort: si falla, el partido ya está cerrado
+    try {
+      const [tournament, events, homeTeam, awayTeam, payments] = await Promise.all([
         this.tournamentsRepository.findById(match.tournamentId),
         this.matchEventsRepository.findByMatchWithPlayers(data.matchId),
         this.teamsRepository.findById(match.homeTeamId),
         this.teamsRepository.findById(match.awayTeamId),
+        this.paymentsRepository.findByMatch(data.matchId),
       ]);
 
       const actaData = {
@@ -150,6 +188,7 @@ export class VocaliaGateway implements OnGatewayInit {
           redCardFine: tournament?.redCardFine ?? 0,
           courtFee: tournament?.courtFee ?? 0,
           refereeFee: tournament?.refereeFee ?? 0,
+          refereeFeeEnabled: tournament?.refereeFeeEnabled ?? false,
         },
         match: {
           scheduledAt: match.scheduledAt,
@@ -169,6 +208,13 @@ export class VocaliaGateway implements OnGatewayInit {
           playerName: e.playerName ?? null,
           playerDorsal: e.playerDorsal ?? null,
           teamId: e.teamId,
+        })),
+        payments: payments.map((p) => ({
+          teamId: p.teamId,
+          method: p.method as 'CASH' | 'TRANSFER',
+          amount: p.amount,
+          status: p.status as 'PENDING' | 'APPROVED' | 'REJECTED',
+          receiptUrl: p.receiptUrl ?? null,
         })),
       };
 

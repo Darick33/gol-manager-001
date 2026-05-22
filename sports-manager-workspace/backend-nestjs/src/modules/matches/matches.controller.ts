@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Patch, Res, UseGuards } from '@nestjs/com
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { PaymentsRepository } from '../payments/payments.repository';
 import { PdfService } from '../pdf/pdf.service';
 import { TeamsRepository } from '../teams/teams.repository';
 import { TournamentsRepository } from '../tournaments/tournaments.repository';
@@ -17,6 +18,7 @@ export class MatchesController {
     private pdfService: PdfService,
     private tournamentsRepository: TournamentsRepository,
     private teamsRepository: TeamsRepository,
+    private paymentsRepository: PaymentsRepository,
   ) {}
 
   @Get('tournament/:tournamentId')
@@ -41,11 +43,12 @@ export class MatchesController {
         return;
       }
 
-      const [tournament, events, homeTeam, awayTeam] = await Promise.all([
+      const [tournament, events, homeTeam, awayTeam, payments] = await Promise.all([
         this.tournamentsRepository.findById(match.tournamentId),
         this.matchEventsRepository.findByMatchWithPlayers(id),
         this.teamsRepository.findById(match.homeTeamId),
         this.teamsRepository.findById(match.awayTeamId),
+        this.paymentsRepository.findByMatch(id),
       ]);
 
       const actaData = {
@@ -56,6 +59,7 @@ export class MatchesController {
           redCardFine: tournament?.redCardFine ?? 0,
           courtFee: tournament?.courtFee ?? 0,
           refereeFee: tournament?.refereeFee ?? 0,
+          refereeFeeEnabled: tournament?.refereeFeeEnabled ?? false,
         },
         match: {
           scheduledAt: match.scheduledAt,
@@ -75,6 +79,13 @@ export class MatchesController {
           playerName: e.playerName ?? null,
           playerDorsal: e.playerDorsal ?? null,
           teamId: e.teamId,
+        })),
+        payments: payments.map((p) => ({
+          teamId: p.teamId,
+          method: p.method as 'CASH' | 'TRANSFER',
+          amount: p.amount,
+          status: p.status as 'PENDING' | 'APPROVED' | 'REJECTED',
+          receiptUrl: p.receiptUrl ?? null,
         })),
       };
 

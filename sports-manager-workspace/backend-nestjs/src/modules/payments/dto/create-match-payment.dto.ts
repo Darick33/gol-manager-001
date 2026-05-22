@@ -7,6 +7,9 @@ export class CreateMatchPaymentDto {
   @IsUUID()
   teamId: string;
 
+  @IsUUID()
+  tournamentId: string;
+
   @IsEnum(['CASH', 'TRANSFER'])
   method: 'CASH' | 'TRANSFER';
 

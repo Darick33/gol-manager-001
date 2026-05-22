@@ -6,15 +6,18 @@ import {
   ArrowLeft, Trophy, Users, Calendar, BarChart2, Plus,
   ChevronDown, ChevronUp, X, Loader2, Play, Swords, Shield,
   Check, ExternalLink, FileDown, Settings, Pencil,
+  Lock, LockOpen,
 } from 'lucide-react';
 import { tournamentsApi } from '../../api/tournaments.api';
 import { teamsApi, playersApi } from '../../api/teams.api';
 import { matchesApi } from '../../api/matches.api';
+import { balanceApi } from '../../api/balance.api';
+import { roundsApi } from '../../api/rounds.api';
 import { Button } from '../../components/ui/button';
 import { ImageUpload } from '../../components/ui/ImageUpload';
 import { TournamentConfigTab } from './TournamentConfigTab';
 import { PaymentModal } from '../../components/ui/PaymentModal';
-import type { Team, Match, Player, MatchEvent } from '../../types';
+import type { Team, Match, Player, MatchEvent, TeamBalance, LedgerEntry, TournamentRound } from '../../types';
 
 const SPORT_LABEL = { FOOTBALL: 'Fútbol', FUTSAL: 'Fútbol Sala' };
 const FORMAT_LABEL = {
@@ -33,7 +36,7 @@ const MATCH_STATUS = {
   FINISHED:    { label: 'Finalizado', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
 };
 
-type Tab = 'teams' | 'fixture' | 'standings' | 'config';
+type Tab = 'teams' | 'fixture' | 'standings' | 'balances' | 'config';
 
 function computeStandings(teams: Team[], matches: Match[]) {
   const stats: Record<string, { played: number; won: number; drawn: number; lost: number; gf: number; ga: number; pts: number }> = {};
@@ -93,6 +96,12 @@ export default function TournamentDetailPage() {
   const { data: matches = [] } = useQuery({
     queryKey: ['tournament-matches', id],
     queryFn: () => tournamentsApi.getMatches(id!),
+    enabled: !!id,
+  });
+
+  const { data: rounds = [] } = useQuery({
+    queryKey: ['rounds', id],
+    queryFn: () => roundsApi.listByTournament(id!),
     enabled: !!id,
   });
 
@@ -200,6 +209,7 @@ export default function TournamentDetailPage() {
     { key: 'teams',     label: 'Equipos',       icon: Users    },
     { key: 'fixture',   label: 'Fixture',       icon: Calendar },
     { key: 'standings', label: 'Posiciones',    icon: BarChart2 },
+    { key: 'balances',  label: 'Saldos',        icon: Trophy   },
     { key: 'config',    label: 'Configuración', icon: Settings },
   ];
 
@@ -332,13 +342,18 @@ export default function TournamentDetailPage() {
               tournamentId={id!}
             />
           )}
+          {tab === 'balances' && (
+            <BalancesTab tournamentId={id!} teams={teams} />
+          )}
           {tab === 'fixture' && (
             <FixtureTab
               matches={matches}
               matchesByStage={matchesByStage}
               teamMap={teamMap}
+              tournament={tournament}
               tournamentStatus={tournament.status}
               teamsCount={teams.length}
+              rounds={rounds}
               onGenerate={() => generateFixture.mutate()}
               isGenerating={generateFixture.isPending}
             />
@@ -365,7 +380,7 @@ export default function TournamentDetailPage() {
               style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{ paddingTop: 20 }}>
-                  <ImageUpload value={teamLogoUrl} onChange={setTeamLogoUrl} shape="square" size={68} placeholder="Logo" />
+                  <ImageUpload value={teamLogoUrl} onChange={setTeamLogoUrl} shape="square" size={68} placeholder="Logo" folder="team-logos" />
                 </div>
                 <Field label="Nombre del equipo" style={{ flex: 1 }}>
                   <input
@@ -394,7 +409,7 @@ export default function TournamentDetailPage() {
               style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{ paddingTop: 20 }}>
-                  <ImageUpload value={playerPhotoUrl} onChange={setPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" />
+                  <ImageUpload value={playerPhotoUrl} onChange={setPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" folder="player-photos" />
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Field label="Nombre">
@@ -434,7 +449,7 @@ export default function TournamentDetailPage() {
               style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{ paddingTop: 20 }}>
-                  <ImageUpload value={editPlayerPhotoUrl} onChange={setEditPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" />
+                  <ImageUpload value={editPlayerPhotoUrl} onChange={setEditPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" folder="player-photos" />
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Field label="Nombre">
@@ -482,6 +497,13 @@ function TeamsTab({ teams, onAddTeam, onAddPlayer, onEditPlayer, tournamentId }:
   onEditPlayer: (player: Player) => void;
   tournamentId: string;
 }) {
+  const { data: balances = [] } = useQuery({
+    queryKey: ['balances', tournamentId],
+    queryFn: () => balanceApi.getByTournament(tournamentId),
+    staleTime: 30_000,
+  });
+  const balanceMap = Object.fromEntries(balances.map((b) => [b.teamId, b.balance]));
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
@@ -500,7 +522,12 @@ function TeamsTab({ teams, onAddTeam, onAddPlayer, onEditPlayer, tournamentId }:
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05, duration: 0.3 }}
             >
-              <TeamCard team={team} onAddPlayer={() => onAddPlayer(team.id)} onEditPlayer={onEditPlayer} />
+              <TeamCard
+                team={team}
+                balance={balanceMap[team.id] ?? null}
+                onAddPlayer={() => onAddPlayer(team.id)}
+                onEditPlayer={onEditPlayer}
+              />
             </motion.div>
           ))}
         </div>
@@ -509,7 +536,7 @@ function TeamsTab({ teams, onAddTeam, onAddPlayer, onEditPlayer, tournamentId }:
   );
 }
 
-function TeamCard({ team, onAddPlayer, onEditPlayer }: { team: Team; onAddPlayer: () => void; onEditPlayer: (player: Player) => void }) {
+function TeamCard({ team, balance, onAddPlayer, onEditPlayer }: { team: Team; balance: number | null; onAddPlayer: () => void; onEditPlayer: (player: Player) => void }) {
   const [expanded, setExpanded] = useState(false);
   const { data: players = [], isLoading } = useQuery({
     queryKey: ['team-players', team.id],
@@ -548,6 +575,26 @@ function TeamCard({ team, onAddPlayer, onEditPlayer }: { team: Team; onAddPlayer
           <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{team.name}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {balance !== null && balance < 0 && (
+            <span style={{
+              fontSize: 11, fontWeight: 700,
+              color: '#ef4444', background: 'rgba(239,68,68,0.1)',
+              border: '1px solid rgba(239,68,68,0.2)',
+              padding: '2px 8px', borderRadius: 100,
+            }}>
+              Debe {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Math.abs(balance))}
+            </span>
+          )}
+          {balance !== null && balance === 0 && (
+            <span style={{
+              fontSize: 11, fontWeight: 600,
+              color: '#10b981', background: 'rgba(16,185,129,0.08)',
+              border: '1px solid rgba(16,185,129,0.15)',
+              padding: '2px 8px', borderRadius: 100,
+            }}>
+              Al día
+            </span>
+          )}
           {expanded
             ? <ChevronUp size={15} color="#475569" />
             : <ChevronDown size={15} color="#475569" />}
@@ -620,12 +667,66 @@ function PlayerRow({ player, onEdit }: { player: Player; onEdit: () => void }) {
 
 type FixtureSubTab = 'live' | 'today' | 'all';
 
-function FixtureTab({ matches, matchesByStage, teamMap, tournamentStatus, teamsCount, onGenerate, isGenerating }: {
+function StageCloseButton({ tournamentId, stage }: { tournamentId: string; stage: number }) {
+  const [confirming, setConfirming] = useState(false);
+  const qc = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () => roundsApi.closeRound(tournamentId, stage),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['rounds', tournamentId] });
+      setConfirming(false);
+    },
+  });
+
+  if (!confirming) {
+    return (
+      <button
+        onClick={() => setConfirming(true)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 5,
+          padding: '4px 11px', borderRadius: 7, cursor: 'pointer',
+          background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)',
+          color: '#f87171', fontSize: 11, fontWeight: 700, transition: 'all 0.15s',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.14)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.07)'; }}
+      >
+        <Lock size={10} /> Cerrar jornada
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ fontSize: 11, color: '#64748b', fontWeight: 500 }}>¿Confirmar cierre?</span>
+      <button onClick={() => setConfirming(false)} style={{
+        padding: '3px 9px', borderRadius: 6, height: 26, cursor: 'pointer',
+        background: 'transparent', border: '1px solid rgba(255,255,255,0.08)',
+        color: '#475569', fontSize: 11, fontWeight: 600,
+      }}>No</button>
+      <button onClick={() => mutation.mutate()} disabled={mutation.isPending} style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        padding: '3px 10px', borderRadius: 6, height: 26, cursor: 'pointer',
+        background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+        color: '#ef4444', fontSize: 11, fontWeight: 700,
+        opacity: mutation.isPending ? 0.7 : 1,
+      }}>
+        {mutation.isPending && <Loader2 size={9} style={{ animation: 'spin 1s linear infinite' }} />}
+        Sí, cerrar
+      </button>
+    </div>
+  );
+}
+
+function FixtureTab({ matches, matchesByStage, teamMap, tournament, tournamentStatus, teamsCount, rounds, onGenerate, isGenerating }: {
   matches: Match[];
   matchesByStage: Record<number, Match[]>;
   teamMap: Record<string, Team>;
+  tournament: import('../../types').Tournament;
   tournamentStatus: string;
   teamsCount: number;
+  rounds: TournamentRound[];
   onGenerate: () => void;
   isGenerating: boolean;
 }) {
@@ -663,6 +764,9 @@ function FixtureTab({ matches, matchesByStage, teamMap, tournamentStatus, teamsC
   });
 
   const stages = Object.keys(matchesByStage).map(Number).sort((a, b) => a - b);
+  const closedStageSet = new Set(rounds.filter(r => r.status === 'CLOSED').map(r => r.stage));
+  const openStages   = stages.filter(s => !closedStageSet.has(s));
+  const closedStages = stages.filter(s => closedStageSet.has(s));
 
   const SUB_TABS: { key: FixtureSubTab; label: string; count?: number; dot?: boolean }[] = [
     { key: 'live',  label: 'En Vivo',  count: liveMatches.length,  dot: liveMatches.length > 0 },
@@ -729,21 +833,61 @@ function FixtureTab({ matches, matchesByStage, teamMap, tournamentStatus, teamsC
           {sub === 'live' && (
             liveMatches.length === 0
               ? <EmptyState icon={Play} text="No hay partidos en vivo en este momento." />
-              : <MatchList matches={liveMatches} teamMap={teamMap} />
+              : <MatchList matches={liveMatches} teamMap={teamMap} tournament={tournament} />
           )}
           {sub === 'today' && (
             todayMatches.length === 0
               ? <EmptyState icon={Calendar} text="No hay partidos programados para hoy." />
-              : <MatchList matches={todayMatches} teamMap={teamMap} />
+              : <MatchList matches={todayMatches} teamMap={teamMap} tournament={tournament} />
           )}
           {sub === 'all' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-              {stages.map((stage) => (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+              {/* ── Jornadas abiertas ── */}
+              {openStages.map((stage) => (
                 <div key={stage}>
-                  <h3 style={{ fontSize: 12, fontWeight: 700, color: '#334155', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.7px' }}>
-                    Jornada {stage}
-                  </h3>
-                  <MatchList matches={matchesByStage[stage]} teamMap={teamMap} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <LockOpen size={11} color="#334155" />
+                      <h3 style={{ fontSize: 12, fontWeight: 700, color: '#334155', margin: 0, textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                        Jornada {stage}
+                      </h3>
+                    </div>
+                    <StageCloseButton tournamentId={tournament.id} stage={stage} />
+                  </div>
+                  <MatchList matches={matchesByStage[stage]} teamMap={teamMap} tournament={tournament} roundClosed={false} />
+                </div>
+              ))}
+
+              {/* ── Divisor ── */}
+              {closedStages.length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '2px 0' }}>
+                  <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.05)' }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <Lock size={10} color="#2d3748" />
+                    <span style={{ fontSize: 10, color: '#2d3748', fontWeight: 700, letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+                      Jornadas cerradas
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.05)' }} />
+                </div>
+              )}
+
+              {/* ── Jornadas cerradas ── */}
+              {closedStages.map((stage) => (
+                <div key={stage} style={{ opacity: 0.75 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <Lock size={11} color="#2d3748" />
+                    <h3 style={{ fontSize: 12, fontWeight: 700, color: '#2d3748', margin: 0, textTransform: 'uppercase', letterSpacing: '0.7px' }}>
+                      Jornada {stage}
+                    </h3>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 8,
+                      background: 'rgba(71,85,105,0.12)', border: '1px solid rgba(71,85,105,0.2)',
+                      color: '#475569',
+                    }}>CERRADA</span>
+                  </div>
+                  <MatchList matches={matchesByStage[stage]} teamMap={teamMap} tournament={tournament} roundClosed={true} />
                 </div>
               ))}
             </div>
@@ -754,7 +898,12 @@ function FixtureTab({ matches, matchesByStage, teamMap, tournamentStatus, teamsC
   );
 }
 
-function MatchList({ matches, teamMap }: { matches: Match[]; teamMap: Record<string, Team> }) {
+function MatchList({ matches, teamMap, tournament, roundClosed = false }: {
+  matches: Match[];
+  teamMap: Record<string, Team>;
+  tournament: import('../../types').Tournament;
+  roundClosed?: boolean;
+}) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {matches.map((match, i) => (
@@ -764,7 +913,7 @@ function MatchList({ matches, teamMap }: { matches: Match[]; teamMap: Record<str
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: i * 0.04, duration: 0.22 }}
         >
-          <MatchCard match={match} teamMap={teamMap} />
+          <MatchCard match={match} teamMap={teamMap} tournament={tournament} roundClosed={roundClosed} />
         </motion.div>
       ))}
     </div>
@@ -799,7 +948,12 @@ function CardPip({ color, count }: { color: string; count: number }) {
   );
 }
 
-function MatchCard({ match, teamMap }: { match: Match; teamMap: Record<string, Team> }) {
+function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
+  match: Match;
+  teamMap: Record<string, Team>;
+  tournament: import('../../types').Tournament;
+  roundClosed?: boolean;
+}) {
   const qc = useQueryClient();
   const home = teamMap[match.homeTeamId];
   const away = teamMap[match.awayTeamId];
@@ -1122,17 +1276,19 @@ function MatchCard({ match, teamMap }: { match: Match; teamMap: Record<string, T
               ? <><Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> Descargando...</>
               : <><FileDown size={11} /> Descargar Acta</>}
           </button>
-          <button
-            onClick={() => setShowPayment(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
-              borderRadius: 8, padding: '6px 16px',
-              color: '#a5b4fc', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-            }}
-          >
-            💳 Registrar pago
-          </button>
+          {!roundClosed && (
+            <button
+              onClick={() => setShowPayment(true)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.3)',
+                borderRadius: 8, padding: '6px 16px',
+                color: '#a5b4fc', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              }}
+            >
+              💳 Registrar pago
+            </button>
+          )}
         </div>
       ) : (
         <div style={{
@@ -1192,6 +1348,7 @@ function MatchCard({ match, teamMap }: { match: Match; teamMap: Record<string, T
             matchId={match.id}
             homeTeam={home ?? null}
             awayTeam={away ?? null}
+            tournament={tournament}
             onClose={() => setShowPayment(false)}
             onSuccess={() => qc.invalidateQueries({ queryKey: ['match-events', match.id] })}
           />
@@ -1262,6 +1419,166 @@ function StandingsTab({ teams, matches, format }: { teams: Team[]; matches: Matc
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ─── Balances Tab ─────────────────────────────────────────────────────────────
+
+const COP = (n: number) =>
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+
+const LEDGER_LABEL: Record<string, string> = {
+  MATCH_CHARGE:    'Cobro partido',
+  FINE_CHARGE:     'Multa',
+  PAYMENT_CREDIT:  'Pago recibido',
+  ADJUSTMENT:      'Ajuste',
+};
+
+function BalancesTab({ tournamentId, teams }: { tournamentId: string; teams: Team[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+
+  const { data: balances = [], isLoading } = useQuery({
+    queryKey: ['balances', tournamentId],
+    queryFn: () => balanceApi.getByTournament(tournamentId),
+    staleTime: 30_000,
+  });
+
+  const teamMap = Object.fromEntries(teams.map((t) => [t.id, t]));
+
+  // fill in teams with no balance row yet
+  const rows = teams.map((t) => {
+    const b = balances.find((b) => b.teamId === t.id);
+    return { team: t, balance: b?.balance ?? null };
+  }).sort((a, b) => (a.balance ?? 0) - (b.balance ?? 0));
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
+        <Loader2 size={20} color="#475569" style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {rows.map(({ team, balance }) => (
+        <div key={team.id} style={{
+          borderRadius: 14,
+          border: balance !== null && balance < 0
+            ? '1px solid rgba(239,68,68,0.25)'
+            : '1px solid rgba(255,255,255,0.07)',
+          background: balance !== null && balance < 0
+            ? 'rgba(239,68,68,0.03)'
+            : 'rgba(255,255,255,0.02)',
+          overflow: 'hidden',
+        }}>
+          <button
+            onClick={() => setOpen(open === team.id ? null : team.id)}
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center',
+              justifyContent: 'space-between', padding: '14px 18px',
+              background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: 10, flexShrink: 0,
+                background: team.primaryColor ? `${team.primaryColor}22` : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${team.primaryColor ?? 'rgba(255,255,255,0.1)'}33`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
+              }}>
+                {team.logoUrl
+                  ? <img src={team.logoUrl} alt={team.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <Shield size={14} color={team.primaryColor ?? '#475569'} />}
+              </div>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{team.name}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {balance === null ? (
+                <span style={{ fontSize: 12, color: '#334155' }}>Sin movimientos</span>
+              ) : balance < 0 ? (
+                <span style={{ fontSize: 14, fontWeight: 800, color: '#ef4444' }}>
+                  {COP(balance)}
+                </span>
+              ) : (
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#10b981' }}>
+                  {balance === 0 ? 'Al día' : COP(balance)}
+                </span>
+              )}
+              {open === team.id
+                ? <ChevronUp size={14} color="#475569" />
+                : <ChevronDown size={14} color="#475569" />}
+            </div>
+          </button>
+
+          <AnimatePresence>
+            {open === team.id && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                style={{ overflow: 'hidden', borderTop: '1px solid rgba(255,255,255,0.05)' }}
+              >
+                <LedgerPanel teamId={team.id} tournamentId={tournamentId} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LedgerPanel({ teamId, tournamentId }: { teamId: string; tournamentId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['balance-summary', teamId, tournamentId],
+    queryFn: () => balanceApi.getTeamSummary(teamId, tournamentId),
+    staleTime: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 20 }}>
+        <Loader2 size={14} color="#475569" style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  const ledger = data?.ledger ?? [];
+
+  if (ledger.length === 0) {
+    return (
+      <p style={{ fontSize: 13, color: '#334155', padding: '12px 18px', margin: 0 }}>Sin movimientos registrados.</p>
+    );
+  }
+
+  return (
+    <div style={{ padding: '8px 18px 14px' }}>
+      {ledger.map((entry: LedgerEntry) => {
+        const isCredit = entry.amount > 0;
+        return (
+          <div key={entry.id} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '7px 0',
+            borderBottom: '1px solid rgba(255,255,255,0.04)',
+          }}>
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1', margin: 0 }}>
+                {LEDGER_LABEL[entry.type] ?? entry.type}
+              </p>
+              <p style={{ fontSize: 11, color: '#475569', margin: '2px 0 0' }}>{entry.description}</p>
+            </div>
+            <span style={{
+              fontSize: 13, fontWeight: 800, flexShrink: 0, marginLeft: 12,
+              color: isCredit ? '#10b981' : '#ef4444',
+            }}>
+              {isCredit ? '+' : ''}{COP(entry.amount)}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }

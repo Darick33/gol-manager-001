@@ -22,6 +22,20 @@
       "when": 1779339697517,
       "tag": "0002_bouncy_quasar",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1779419283145,
+      "tag": "0003_tranquil_squadron_supreme",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1779421088916,
+      "tag": "0004_loving_captain_marvel",
+      "breakpoints": true
     }
   ]
 }

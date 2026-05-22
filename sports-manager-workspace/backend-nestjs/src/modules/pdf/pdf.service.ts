@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import * as https from 'https';
+import * as http from 'http';
 import { join } from 'path';
 import PDFDocument from 'pdfkit';
 
@@ -14,6 +16,14 @@ export interface PlayerEventDetail {
   teamId: string;
 }
 
+export interface ActaPayment {
+  teamId: string;
+  method: 'CASH' | 'TRANSFER';
+  amount: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  receiptUrl: string | null;
+}
+
 export interface ActaData {
   tournament: {
     name: string;
@@ -22,6 +32,7 @@ export interface ActaData {
     redCardFine: number;
     courtFee: number;
     refereeFee: number;
+    refereeFeeEnabled: boolean;
   };
   match: {
     scheduledAt: Date | null;
@@ -35,6 +46,7 @@ export interface ActaData {
     awayScore: number;
   };
   events: PlayerEventDetail[];
+  payments: ActaPayment[];
 }
 
 const C = {
@@ -64,7 +76,19 @@ type Doc = InstanceType<typeof PDFDocument>;
 
 @Injectable()
 export class PdfService {
-  generateActa(data: ActaData): Promise<Buffer> {
+  async generateActa(data: ActaData): Promise<Buffer> {
+    // Pre-fetch all receipt images before opening the PDF stream
+    const receiptImages = new Map<string, Buffer>();
+    for (const p of data.payments) {
+      if (p.receiptUrl && p.status === 'APPROVED' && p.method === 'TRANSFER') {
+        try {
+          receiptImages.set(p.receiptUrl, await this.fetchImageBuffer(p.receiptUrl));
+        } catch {
+          // image unavailable — will show placeholder text
+        }
+      }
+    }
+
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 0, size: 'LETTER' });
       const chunks: Buffer[] = [];
@@ -73,12 +97,17 @@ export class PdfService {
       doc.on('end', () => resolve(Buffer.concat(chunks)));
       doc.on('error', reject);
 
+      // Page 1 — match info
       this.drawHeader(doc, data);
       this.drawScoreboard(doc, data);
       let y = this.drawEventSection(doc, data);
       y = this.drawSummary(doc, data, y);
       y = this.drawFinancial(doc, data, y);
       this.drawFooter(doc, y);
+
+      // Page 2 — payments
+      doc.addPage();
+      this.drawPaymentsPage(doc, data, receiptImages);
 
       doc.end();
     });
@@ -375,6 +404,97 @@ export class PdfService {
     return y;
   }
 
+  // ─── Payments (page 2) ─────────────────────────────────────────────────────
+
+  private drawPaymentsPage(doc: Doc, data: ActaData, receiptImages: Map<string, Buffer>): void {
+    const PAGE_H = 792;
+    const fmt = (n: number) => `$${n.toLocaleString('es-CO')}`;
+
+    // Page 2 header bar
+    doc.rect(0, 0, PAGE_W, 56).fill(C.headerBg);
+    doc.rect(0, 51, PAGE_W, 5).fill(C.accent);
+    doc.fillColor(C.white).font(FONT_BOLD).fontSize(16)
+      .text('ESTADO DE PAGOS', M, 14, { width: CONTENT_W, align: 'center' });
+    doc.fillColor('#94a3b8').font(FONT_REGULAR).fontSize(9)
+      .text(data.tournament.name, M, 34, { width: CONTENT_W, align: 'center' });
+
+    let y = 72;
+
+    const teams = [
+      { id: data.match.homeTeamId, name: data.match.homeTeamName, color: data.match.homeTeamColor ?? C.homeDef },
+      { id: data.match.awayTeamId, name: data.match.awayTeamName, color: data.match.awayTeamColor ?? C.awayDef },
+    ];
+
+    for (const team of teams) {
+      const payment = data.payments.find(
+        (p) => p.teamId === team.id && (p.status === 'APPROVED' || p.status === 'PENDING'),
+      );
+
+      const imgBuf = payment?.receiptUrl ? receiptImages.get(payment.receiptUrl) : undefined;
+      const IMG_MAX_W = CONTENT_W - 32;
+      const IMG_MAX_H = 220;
+
+      // Base card height: label row (36) + detail row (28) + bottom padding (16)
+      const baseH = 80;
+      const cardH = imgBuf ? baseH + IMG_MAX_H + 12 : baseH;
+
+      const bgColor = payment?.status === 'APPROVED'
+        ? '#f0fdf4'
+        : payment?.status === 'PENDING' ? '#fefce8' : '#fef2f2';
+
+      // Card background + border
+      doc.rect(M, y, CONTENT_W, cardH).fill(bgColor);
+      doc.rect(M, y, CONTENT_W, cardH).stroke(C.surfaceBorder);
+      // Team color strip
+      doc.rect(M, y, 6, cardH).fill(team.color);
+
+      // Team name
+      doc.fillColor(C.dark).font(FONT_BOLD).fontSize(13)
+        .text(team.name.toUpperCase(), M + 18, y + 14, { width: CONTENT_W - 130 });
+
+      if (!payment) {
+        doc.fillColor(C.red).font(FONT_BOLD).fontSize(11)
+          .text('PENDIENTE', M + CONTENT_W - 105, y + 14, { width: 93, align: 'right' });
+        doc.fillColor(C.light).font(FONT_REGULAR).fontSize(10)
+          .text('Sin pago registrado', M + 18, y + 46, { width: CONTENT_W - 130 });
+
+      } else if (payment.status === 'APPROVED') {
+        const methodLabel = payment.method === 'CASH' ? 'Efectivo' : 'Transferencia';
+        doc.fillColor('#16a34a').font(FONT_BOLD).fontSize(11)
+          .text('✓  PAGADO', M + CONTENT_W - 105, y + 14, { width: 93, align: 'right' });
+        doc.fillColor(C.mid).font(FONT_REGULAR).fontSize(10)
+          .text(`Método: ${methodLabel}`, M + 18, y + 46, { width: 200 });
+        doc.fillColor(C.dark).font(FONT_BOLD).fontSize(11)
+          .text(fmt(payment.amount), M + CONTENT_W - 105, y + 44, { width: 93, align: 'right' });
+
+        if (imgBuf) {
+          const imgY = y + baseH;
+          try {
+            doc.image(imgBuf, M + 16, imgY, { fit: [IMG_MAX_W, IMG_MAX_H], align: 'center' });
+          } catch {
+            doc.fillColor(C.lighter).font(FONT_REGULAR).fontSize(9)
+              .text('(no se pudo cargar el comprobante)', M + 18, imgY + 8);
+          }
+        }
+
+      } else {
+        // PENDING review
+        doc.fillColor('#b45309').font(FONT_BOLD).fontSize(11)
+          .text('EN REVISIÓN', M + CONTENT_W - 105, y + 14, { width: 93, align: 'right' });
+        doc.fillColor(C.mid).font(FONT_REGULAR).fontSize(10)
+          .text('Comprobante enviado · pendiente de aprobación', M + 18, y + 46, { width: CONTENT_W - 130 });
+        doc.fillColor(C.dark).font(FONT_BOLD).fontSize(11)
+          .text(fmt(payment.amount), M + CONTENT_W - 105, y + 44, { width: 93, align: 'right' });
+      }
+
+      y += cardH + 18;
+    }
+
+    // Footer
+    const footerY = Math.max(y + 12, PAGE_H - 50);
+    this.drawFooter(doc, footerY);
+  }
+
   // ─── Footer ────────────────────────────────────────────────────────────────
 
   private drawFooter(doc: Doc, startY: number): void {
@@ -389,6 +509,27 @@ export class PdfService {
   }
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
+
+  private fetchImageBuffer(url: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const client = url.startsWith('https') ? https : http;
+      const req = client.get(url, (res) => {
+        if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          this.fetchImageBuffer(res.headers.location).then(resolve, reject);
+          return;
+        }
+        if (res.statusCode && res.statusCode >= 400) {
+          reject(new Error(`HTTP ${res.statusCode}`));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (c: Buffer) => chunks.push(c));
+        res.on('end', () => resolve(Buffer.concat(chunks)));
+        res.on('error', reject);
+      });
+      req.on('error', reject);
+    });
+  }
 
   private drawDivider(doc: Doc, y: number, opacity = 1): void {
     doc.moveTo(M, y).lineTo(M + CONTENT_W, y)

@@ -1,4 +1,4 @@
-import { pgTable, uuid, varchar, text, integer, doublePrecision, boolean, timestamp, pgEnum } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, varchar, text, integer, doublePrecision, boolean, timestamp, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const userRoleEnum = pgEnum('user_role', ['SUPER_ADMIN', 'VOCAL', 'DELEGATE']);
 export const tournamentFormatEnum = pgEnum('tournament_format', ['ROUND_ROBIN', 'GROUPS_ELIMINATION', 'DIRECT_ELIMINATION']);
@@ -109,11 +109,62 @@ export const payments = pgTable('payments', {
   fineId: uuid('fine_id').references(() => fines.id),
   matchId: uuid('match_id').references(() => matches.id),
   teamId: uuid('team_id').notNull().references(() => teams.id),
+  tournamentId: uuid('tournament_id').references(() => tournaments.id),
   method: paymentMethodEnum('method').default('TRANSFER').notNull(),
   amount: doublePrecision('amount').default(0).notNull(),
   receiptUrl: text('receipt_url'),
   status: paymentStatusEnum('status').default('PENDING').notNull(),
   reviewedBy: uuid('reviewed_by').references(() => users.id),
   reviewedAt: timestamp('reviewed_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const roundStatusEnum = pgEnum('round_status', ['OPEN', 'CLOSED']);
+
+export const tournamentRounds = pgTable(
+  'tournament_rounds',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    tournamentId: uuid('tournament_id').notNull().references(() => tournaments.id, { onDelete: 'cascade' }),
+    stage: integer('stage').notNull(),
+    name: varchar('name', { length: 100 }),
+    status: roundStatusEnum('status').notNull().default('OPEN'),
+    closedAt: timestamp('closed_at'),
+    closedById: uuid('closed_by_id').references(() => users.id),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('tournament_rounds_tournament_stage_idx').on(t.tournamentId, t.stage)],
+);
+
+
+export const balanceLedgerTypeEnum = pgEnum('balance_ledger_type', [
+  'MATCH_CHARGE',
+  'FINE_CHARGE',
+  'PAYMENT_CREDIT',
+  'ADJUSTMENT',
+]);
+
+export const teamBalances = pgTable(
+  'team_balances',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    teamId: uuid('team_id').notNull().references(() => teams.id),
+    tournamentId: uuid('tournament_id').notNull().references(() => tournaments.id),
+    balance: doublePrecision('balance').default(0).notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('team_balances_team_tournament_idx').on(t.teamId, t.tournamentId)],
+);
+
+export const balanceLedger = pgTable('balance_ledger', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  teamId: uuid('team_id').notNull().references(() => teams.id),
+  tournamentId: uuid('tournament_id').notNull().references(() => tournaments.id),
+  matchId: uuid('match_id').references(() => matches.id),
+  fineId: uuid('fine_id').references(() => fines.id),
+  paymentId: uuid('payment_id').references(() => payments.id),
+  type: balanceLedgerTypeEnum('type').notNull(),
+  amount: doublePrecision('amount').notNull(),
+  description: text('description').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
