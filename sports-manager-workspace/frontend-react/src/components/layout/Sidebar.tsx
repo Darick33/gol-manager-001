@@ -72,15 +72,7 @@ export default function Sidebar({ isMobile = false, isOpen = true, onClose }: Si
         flexShrink: 0,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: 10,
-            background: 'linear-gradient(135deg, #10b981, #059669)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 16px rgba(16,185,129,0.35)',
-            flexShrink: 0,
-          }}>
-            <Logo size={16} color="white" />
-          </div>
+          <img src="/logo.png" alt="GolManager" style={{ width: 34, height: 34, borderRadius: 10, objectFit: 'contain', flexShrink: 0 }} />
           <span style={{ fontWeight: 700, fontSize: 16, color: '#f8fafc', letterSpacing: '-0.3px' }}>
             Gol<span style={{ color: '#10b981' }}>Manager</span>
           </span>

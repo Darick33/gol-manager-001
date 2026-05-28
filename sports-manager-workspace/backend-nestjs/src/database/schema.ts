@@ -36,6 +36,8 @@ export const tournaments = pgTable('tournaments', {
   courtFee: doublePrecision('court_fee').default(0).notNull(),
   refereeFee: doublePrecision('referee_fee').default(0).notNull(),
   refereeFeeEnabled: boolean('referee_fee_enabled').default(false).notNull(),
+  logoUrl: text('logo_url'),
+  logoBgRemovedUrl: text('logo_bg_removed_url'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

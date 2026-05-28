@@ -27,6 +27,8 @@ export class TournamentsService {
       halfDurationMinutes: dto.halfDurationMinutes,
       maxRosterSize: dto.maxRosterSize,
       category: dto.category,
+      ...(dto.logoUrl !== undefined && { logoUrl: dto.logoUrl }),
+      ...(dto.logoBgRemovedUrl !== undefined && { logoBgRemovedUrl: dto.logoBgRemovedUrl }),
       ...(dto.yellowCardFine !== undefined && { yellowCardFine: dto.yellowCardFine }),
       ...(dto.redCardFine !== undefined && { redCardFine: dto.redCardFine }),
       ...(dto.lateFine !== undefined && { lateFine: dto.lateFine }),

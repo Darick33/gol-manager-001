@@ -54,4 +54,12 @@ export class CreateTournamentDto {
   @IsBoolean()
   @IsOptional()
   refereeFeeEnabled?: boolean;
+
+  @IsString()
+  @IsOptional()
+  logoUrl?: string | null;
+
+  @IsString()
+  @IsOptional()
+  logoBgRemovedUrl?: string | null;
 }

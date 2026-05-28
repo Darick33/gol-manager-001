@@ -99,8 +99,11 @@ export default function TournamentsPage() {
                       width: 44, height: 44, borderRadius: 13,
                       background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                      overflow: 'hidden',
                     }}>
-                      <Trophy size={20} color="#10b981" />
+                      {t.logoUrl
+                        ? <img src={t.logoUrl} alt={t.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <Trophy size={20} color="#10b981" />}
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -151,13 +154,13 @@ export default function TournamentsPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Deporte">
-                  <select value={form.sportType} onChange={(e) => setForm({ ...form, sportType: e.target.value as SportType })} style={inputStyle}>
+                  <select value={form.sportType} onChange={(e) => setForm({ ...form, sportType: e.target.value as SportType })} style={selectStyle}>
                     <option value="FOOTBALL">Fútbol</option>
                     <option value="FUTSAL">Fútbol Sala</option>
                   </select>
                 </Field>
                 <Field label="Formato">
-                  <select value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value as TournamentFormat })} style={inputStyle}>
+                  <select value={form.format} onChange={(e) => setForm({ ...form, format: e.target.value as TournamentFormat })} style={selectStyle}>
                     {FORMATS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
                   </select>
                 </Field>
@@ -176,26 +179,26 @@ export default function TournamentsPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
                 <Field label="Multa amarilla ($)">
-                  <input type="number" min={0} value={form.yellowCardFine}
+                  <input type="number" min={0} step="any" value={form.yellowCardFine}
                     onChange={(e) => setForm({ ...form, yellowCardFine: +e.target.value })} style={inputStyle} />
                 </Field>
                 <Field label="Multa roja ($)">
-                  <input type="number" min={0} value={form.redCardFine}
+                  <input type="number" min={0} step="any" value={form.redCardFine}
                     onChange={(e) => setForm({ ...form, redCardFine: +e.target.value })} style={inputStyle} />
                 </Field>
                 <Field label="Multa tardanza ($)">
-                  <input type="number" min={0} value={form.lateFine}
+                  <input type="number" min={0} step="any" value={form.lateFine}
                     onChange={(e) => setForm({ ...form, lateFine: +e.target.value })} style={inputStyle} />
                 </Field>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Valor cancha ($)">
-                  <input type="number" min={0} value={form.courtFee}
+                  <input type="number" min={0} step="any" value={form.courtFee}
                     onChange={(e) => setForm({ ...form, courtFee: +e.target.value })} style={inputStyle} />
                 </Field>
                 <Field label="Valor árbitro ($)">
-                  <input type="number" min={0} value={form.refereeFee}
+                  <input type="number" min={0} step="any" value={form.refereeFee}
                     onChange={(e) => setForm({ ...form, refereeFee: +e.target.value })} style={inputStyle} />
                 </Field>
               </div>
@@ -213,7 +216,16 @@ export default function TournamentsPage() {
         )}
       </AnimatePresence>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button { opacity: 0.4; }
+        select option { background: #0d0d14; color: #f1f5f9; }
+        input:focus, select:focus {
+          border-color: rgba(16,185,129,0.4) !important;
+          background: rgba(16,185,129,0.06) !important;
+        }
+      `}</style>
     </div>
   );
 }
@@ -283,8 +295,21 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 const inputStyle: React.CSSProperties = {
-  width: '100%', background: 'rgba(255,255,255,0.05)',
+  width: '100%', background: 'rgba(255,255,255,0.06)',
   border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10,
-  padding: '9px 12px', color: '#f1f5f9', fontSize: 14, outline: 'none',
+  padding: '10px 12px', color: '#f1f5f9', fontSize: 14, outline: 'none',
   boxSizing: 'border-box', fontFamily: 'inherit',
+  transition: 'border-color 0.15s, background 0.15s',
+};
+
+const selectStyle: React.CSSProperties = {
+  ...inputStyle,
+  appearance: 'none',
+  WebkitAppearance: 'none',
+  MozAppearance: 'none',
+  paddingRight: 36,
+  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 12px center',
+  cursor: 'pointer',
 };

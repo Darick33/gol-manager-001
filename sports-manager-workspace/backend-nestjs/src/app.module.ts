@@ -16,6 +16,7 @@ import { PlayersModule } from './modules/players/players.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { TournamentsModule } from './modules/tournaments/tournaments.module';
 import { UsersModule } from './modules/users/users.module';
+import { PublicModule } from './modules/public/public.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { UsersModule } from './modules/users/users.module';
     CloudinaryModule,
     BalanceModule,
     RoundsModule,
+    PublicModule,
   ],
   controllers: [AppController],
   providers: [AppService],

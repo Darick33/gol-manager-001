@@ -24,6 +24,8 @@
     "db:push": "drizzle-kit push"
   },
   "dependencies": {
+    "@fastify/multipart": "^10.0.0",
+    "@imgly/background-removal-node": "^1.4.5",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.0.1",
@@ -32,11 +34,13 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-fastify": "^11.1.20",
     "@nestjs/platform-socket.io": "^11.1.20",
+    "@nestjs/swagger": "^11.4.4",
     "@nestjs/websockets": "^11.1.20",
     "@whiskeysockets/baileys": "^7.0.0-rc11",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "cloudinary": "^2.9.0",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.8.5",
     "passport": "^0.7.0",

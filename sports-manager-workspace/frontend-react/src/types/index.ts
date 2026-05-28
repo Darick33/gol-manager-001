@@ -33,6 +33,8 @@ export interface Tournament {
   halfDurationMinutes: number;
   maxRosterSize: number;
   category: string | null;
+  logoUrl: string | null;
+  logoBgRemovedUrl: string | null;
   createdAt: string;
 }
 

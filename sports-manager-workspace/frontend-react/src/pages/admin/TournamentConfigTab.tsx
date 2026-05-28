@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react';
-import { Loader2, Settings, DollarSign } from 'lucide-react';
+import { Loader2, Settings, DollarSign, Trophy } from 'lucide-react';
 import { Button } from '../../components/ui/button';
+import { ImageUpload } from '../../components/ui/ImageUpload';
 import { useToast } from '../../components/ui/toast';
+import { uploadWithBgRemoval } from '../../utils/cloudinary';
 import type { Tournament } from '../../types';
 
 interface Props {
@@ -47,6 +49,9 @@ function ConfigField({ label, htmlFor, children }: { label: string; htmlFor: str
 
 export function TournamentConfigTab({ tournament, onSave, isSaving }: Props) {
   const toast = useToast();
+  const [name, setName] = useState(tournament.name);
+  const [logoUrl, setLogoUrl] = useState<string | null>(tournament.logoUrl);
+  const [logoBgRemovedUrl, setLogoBgRemovedUrl] = useState<string | null>(tournament.logoBgRemovedUrl);
   const [yellowCardFine, setYellowCardFine] = useState(String(tournament.yellowCardFine));
   const [redCardFine, setRedCardFine] = useState(String(tournament.redCardFine));
   const [lateFine, setLateFine] = useState(String(tournament.lateFine));
@@ -58,6 +63,9 @@ export function TournamentConfigTab({ tournament, onSave, isSaving }: Props) {
     e.preventDefault();
     try {
       await onSave({
+        name: name.trim() || tournament.name,
+        logoUrl,
+        logoBgRemovedUrl,
         yellowCardFine: parseFloat(yellowCardFine) || 0,
         redCardFine: parseFloat(redCardFine) || 0,
         lateFine: parseFloat(lateFine) || 0,
@@ -73,6 +81,53 @@ export function TournamentConfigTab({ tournament, onSave, isSaving }: Props) {
 
   return (
     <form onSubmit={handleSubmit}>
+      {/* Identity */}
+      <div style={{
+        borderRadius: 16,
+        border: '1px solid rgba(255,255,255,0.07)',
+        background: 'rgba(255,255,255,0.02)',
+        padding: '20px 24px',
+        marginBottom: 16,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <Trophy size={15} color="#10b981" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Identidad
+          </span>
+        </div>
+
+        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+          <div style={{ paddingTop: 20 }}>
+            <ImageUpload
+              value={logoUrl}
+              onChange={setLogoUrl}
+              shape="square"
+              size={80}
+              placeholder="Logo"
+              folder="tournament-logos"
+              uploadLabel="Procesando..."
+              onUpload={async (file) => {
+                const { url, bgRemovedUrl } = await uploadWithBgRemoval(file, 'tournament-logos');
+                setLogoBgRemovedUrl(bgRemovedUrl);
+                return url;
+              }}
+            />
+          </div>
+          <div style={{ flex: 1 }}>
+            <ConfigField label="Nombre del torneo" htmlFor="tournamentName">
+              <input
+                id="tournamentName"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                style={inputStyle}
+              />
+            </ConfigField>
+          </div>
+        </div>
+      </div>
+
       {/* Fine amounts */}
       <div style={{
         borderRadius: 16,

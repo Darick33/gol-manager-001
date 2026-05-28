@@ -9,9 +9,11 @@ interface ImageUploadProps {
   size?: number;
   placeholder?: string;
   folder?: string;
+  uploadLabel?: string;
+  onUpload?: (file: File) => Promise<string>;
 }
 
-export function ImageUpload({ value, onChange, shape = 'square', size = 72, placeholder, folder = 'general' }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, shape = 'square', size = 72, placeholder, folder = 'general', uploadLabel, onUpload }: ImageUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,7 +33,7 @@ export function ImageUpload({ value, onChange, shape = 'square', size = 72, plac
     setError(null);
     setUploading(true);
     try {
-      const url = await uploadToCloudinary(file, folder);
+      const url = onUpload ? await onUpload(file) : await uploadToCloudinary(file, folder);
       onChange(url);
     } catch (e) {
       setError((e as Error).message ?? 'Error al subir');
@@ -67,7 +69,14 @@ export function ImageUpload({ value, onChange, shape = 'square', size = 72, plac
           }}
         >
           {uploading ? (
-            <Loader2 size={20} color="#475569" style={{ animation: 'spin 1s linear infinite' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+              <Loader2 size={20} color="#10b981" style={{ animation: 'spin 1s linear infinite' }} />
+              {uploadLabel && (
+                <span style={{ fontSize: 9, color: '#64748b', textAlign: 'center', lineHeight: 1.2, padding: '0 4px' }}>
+                  {uploadLabel}
+                </span>
+              )}
+            </div>
           ) : value ? (
             <img src={value} alt={placeholder ?? 'imagen'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (

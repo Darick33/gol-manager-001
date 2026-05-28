@@ -5,10 +5,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Trophy, Users, Calendar, BarChart2, Plus,
   ChevronDown, ChevronUp, X, Loader2, Play, Swords, Shield,
-  Check, ExternalLink, FileDown, Settings, Pencil,
+  Check, ExternalLink, FileDown, Settings, Pencil, Printer,
   Lock, LockOpen,
 } from 'lucide-react';
 import { tournamentsApi } from '../../api/tournaments.api';
+import { publicApi, type ScorerRow } from '../../api/public.api';
 import { teamsApi, playersApi } from '../../api/teams.api';
 import { matchesApi } from '../../api/matches.api';
 import { balanceApi } from '../../api/balance.api';
@@ -17,7 +18,7 @@ import { Button } from '../../components/ui/button';
 import { ImageUpload } from '../../components/ui/ImageUpload';
 import { TournamentConfigTab } from './TournamentConfigTab';
 import { PaymentModal } from '../../components/ui/PaymentModal';
-import type { Team, Match, Player, MatchEvent, TeamBalance, LedgerEntry, TournamentRound } from '../../types';
+import type { Tournament, Team, Match, Player, MatchEvent, TeamBalance, LedgerEntry, TournamentRound } from '../../types';
 
 const SPORT_LABEL = { FOOTBALL: 'Fútbol', FUTSAL: 'Fútbol Sala' };
 const FORMAT_LABEL = {
@@ -36,7 +37,7 @@ const MATCH_STATUS = {
   FINISHED:    { label: 'Finalizado', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
 };
 
-type Tab = 'teams' | 'fixture' | 'standings' | 'balances' | 'config';
+type Tab = 'teams' | 'fixture' | 'standings' | 'scorers' | 'balances' | 'config';
 
 function computeStandings(teams: Team[], matches: Match[]) {
   const stats: Record<string, { played: number; won: number; drawn: number; lost: number; gf: number; ga: number; pts: number }> = {};
@@ -74,6 +75,15 @@ export default function TournamentDetailPage() {
   const [editPlayerForm, setEditPlayerForm] = useState({ name: '', dorsal: '' });
   const [editPlayerPhotoUrl, setEditPlayerPhotoUrl] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [showEditTeam, setShowEditTeam] = useState<Team | null>(null);
+  const [editTeamForm, setEditTeamForm] = useState({ name: '', primaryColor: '#10b981', secondaryColor: '#ffffff' });
+  const [editTeamLogoUrl, setEditTeamLogoUrl] = useState<string | null>(null);
+
+  const handleEditTeam = (team: Team) => {
+    setShowEditTeam(team);
+    setEditTeamForm({ name: team.name, primaryColor: team.primaryColor ?? '#10b981', secondaryColor: team.secondaryColor ?? '#ffffff' });
+    setEditTeamLogoUrl(team.logoUrl ?? null);
+  };
 
   const handleEditPlayer = (player: Player) => {
     setShowEditPlayer(player);
@@ -122,6 +132,21 @@ export default function TournamentDetailPage() {
       setShowAddTeam(false);
       setTeamName('');
       setTeamLogoUrl(null);
+    },
+    onError,
+  });
+
+  const editTeam = useMutation({
+    mutationFn: () => teamsApi.update(showEditTeam!.id, {
+      name: editTeamForm.name.trim(),
+      primaryColor: editTeamForm.primaryColor,
+      secondaryColor: editTeamForm.secondaryColor,
+      logoUrl: editTeamLogoUrl,
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['tournament-teams', id] });
+      setShowEditTeam(null);
+      setEditTeamLogoUrl(null);
     },
     onError,
   });
@@ -209,6 +234,7 @@ export default function TournamentDetailPage() {
     { key: 'teams',     label: 'Equipos',       icon: Users    },
     { key: 'fixture',   label: 'Fixture',       icon: Calendar },
     { key: 'standings', label: 'Posiciones',    icon: BarChart2 },
+    { key: 'scorers',   label: 'Goleadores',    icon: Swords   },
     { key: 'balances',  label: 'Saldos',        icon: Trophy   },
     { key: 'config',    label: 'Configuración', icon: Settings },
   ];
@@ -253,8 +279,11 @@ export default function TournamentDetailPage() {
                 width: 40, height: 40, borderRadius: 12,
                 background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
+                overflow: 'hidden', flexShrink: 0,
               }}>
-                <Trophy size={18} color="#10b981" />
+                {tournament.logoUrl
+                  ? <img src={tournament.logoUrl} alt={tournament.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <Trophy size={18} color="#10b981" />}
               </div>
               <h1 style={{ fontSize: 24, fontWeight: 800, color: '#f8fafc', margin: 0, letterSpacing: '-0.5px' }}>
                 {tournament.name}
@@ -336,9 +365,11 @@ export default function TournamentDetailPage() {
           {tab === 'teams' && (
             <TeamsTab
               teams={teams}
+              tournament={tournament}
               onAddTeam={() => setShowAddTeam(true)}
               onAddPlayer={(teamId) => setShowAddPlayer(teamId)}
               onEditPlayer={handleEditPlayer}
+              onEditTeam={handleEditTeam}
               tournamentId={id!}
             />
           )}
@@ -360,6 +391,9 @@ export default function TournamentDetailPage() {
           )}
           {tab === 'standings' && (
             <StandingsTab teams={teams} matches={matches} format={tournament.format} />
+          )}
+          {tab === 'scorers' && (
+            <AdminScorersTab tournamentId={id!} />
           )}
           {tab === 'config' && (
             <TournamentConfigTab
@@ -400,6 +434,52 @@ export default function TournamentDetailPage() {
         )}
       </AnimatePresence>
 
+      {/* Edit team modal */}
+      <AnimatePresence>
+        {showEditTeam && (
+          <Modal onClose={() => { setShowEditTeam(null); setEditTeamLogoUrl(null); }}>
+            <h2 style={modalTitle}>Editar equipo</h2>
+            <form onSubmit={(e) => { e.preventDefault(); editTeam.mutate(); }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ paddingTop: 20 }}>
+                  <ImageUpload value={editTeamLogoUrl} onChange={setEditTeamLogoUrl} shape="square" size={68} placeholder="Logo" folder="team-logos" />
+                </div>
+                <Field label="Nombre del equipo" style={{ flex: 1 }}>
+                  <input
+                    value={editTeamForm.name}
+                    onChange={(e) => setEditTeamForm({ ...editTeamForm, name: e.target.value })}
+                    required placeholder="Los Cóndores" style={inputStyle} autoFocus
+                  />
+                </Field>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <Field label="Color principal">
+                  <input
+                    type="color" value={editTeamForm.primaryColor}
+                    onChange={(e) => setEditTeamForm({ ...editTeamForm, primaryColor: e.target.value })}
+                    style={{ ...inputStyle, padding: 4, height: 42, cursor: 'pointer' }}
+                  />
+                </Field>
+                <Field label="Color secundario">
+                  <input
+                    type="color" value={editTeamForm.secondaryColor}
+                    onChange={(e) => setEditTeamForm({ ...editTeamForm, secondaryColor: e.target.value })}
+                    style={{ ...inputStyle, padding: 4, height: 42, cursor: 'pointer' }}
+                  />
+                </Field>
+              </div>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Button variant="outline" type="button" onClick={() => { setShowEditTeam(null); setEditTeamLogoUrl(null); }}>Cancelar</Button>
+                <Button type="submit" disabled={editTeam.isPending}>
+                  {editTeam.isPending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : 'Guardar cambios'}
+                </Button>
+              </div>
+            </form>
+          </Modal>
+        )}
+      </AnimatePresence>
+
       {/* Add player modal */}
       <AnimatePresence>
         {showAddPlayer && (
@@ -409,7 +489,7 @@ export default function TournamentDetailPage() {
               style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{ paddingTop: 20 }}>
-                  <ImageUpload value={playerPhotoUrl} onChange={setPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" folder="player-photos" />
+                  <ImageUpload value={playerPhotoUrl} onChange={setPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" folder="player-photos" uploadLabel="Eliminando fondo..." />
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Field label="Nombre">
@@ -449,7 +529,7 @@ export default function TournamentDetailPage() {
               style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
                 <div style={{ paddingTop: 20 }}>
-                  <ImageUpload value={editPlayerPhotoUrl} onChange={setEditPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" folder="player-photos" />
+                  <ImageUpload value={editPlayerPhotoUrl} onChange={setEditPlayerPhotoUrl} shape="circle" size={68} placeholder="Foto" folder="player-photos" uploadLabel="Eliminando fondo..." />
                 </div>
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Field label="Nombre">
@@ -490,11 +570,13 @@ export default function TournamentDetailPage() {
 
 // ─── Teams Tab ────────────────────────────────────────────────────────────────
 
-function TeamsTab({ teams, onAddTeam, onAddPlayer, onEditPlayer, tournamentId }: {
+function TeamsTab({ teams, tournament, onAddTeam, onAddPlayer, onEditPlayer, onEditTeam, tournamentId }: {
   teams: Team[];
+  tournament: Tournament | undefined;
   onAddTeam: () => void;
   onAddPlayer: (teamId: string) => void;
   onEditPlayer: (player: Player) => void;
+  onEditTeam: (team: Team) => void;
   tournamentId: string;
 }) {
   const { data: balances = [] } = useQuery({
@@ -524,9 +606,11 @@ function TeamsTab({ teams, onAddTeam, onAddPlayer, onEditPlayer, tournamentId }:
             >
               <TeamCard
                 team={team}
+                tournament={tournament}
                 balance={balanceMap[team.id] ?? null}
                 onAddPlayer={() => onAddPlayer(team.id)}
                 onEditPlayer={onEditPlayer}
+                onEditTeam={() => onEditTeam(team)}
               />
             </motion.div>
           ))}
@@ -536,7 +620,7 @@ function TeamsTab({ teams, onAddTeam, onAddPlayer, onEditPlayer, tournamentId }:
   );
 }
 
-function TeamCard({ team, balance, onAddPlayer, onEditPlayer }: { team: Team; balance: number | null; onAddPlayer: () => void; onEditPlayer: (player: Player) => void }) {
+function TeamCard({ team, tournament, balance, onAddPlayer, onEditPlayer, onEditTeam }: { team: Team; tournament: Tournament | undefined; balance: number | null; onAddPlayer: () => void; onEditPlayer: (player: Player) => void; onEditTeam: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const { data: players = [], isLoading } = useQuery({
     queryKey: ['team-players', team.id],
@@ -595,6 +679,29 @@ function TeamCard({ team, balance, onAddPlayer, onEditPlayer }: { team: Team; ba
               Al día
             </span>
           )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onEditTeam(); }}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, borderRadius: 8,
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.08)',
+              cursor: 'pointer', color: '#64748b',
+              transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(16,185,129,0.1)';
+              (e.currentTarget as HTMLElement).style.color = '#10b981';
+              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(16,185,129,0.25)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
+              (e.currentTarget as HTMLElement).style.color = '#64748b';
+              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)';
+            }}
+          >
+            <Pencil size={12} />
+          </button>
           {expanded
             ? <ChevronUp size={15} color="#475569" />
             : <ChevronDown size={15} color="#475569" />}
@@ -619,12 +726,26 @@ function TeamCard({ team, balance, onAddPlayer, onEditPlayer }: { team: Team; ba
                 <p style={{ fontSize: 13, color: '#475569', margin: '0 0 12px' }}>Sin jugadores aún.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-                  {players.map((p) => <PlayerRow key={p.id} player={p} onEdit={() => onEditPlayer(p)} />)}
+                  {players.map((p) => (
+                    <PlayerRow
+                      key={p.id}
+                      player={p}
+                      onEdit={() => onEditPlayer(p)}
+                      onPrint={() => tournament && printCarnets([p], team, tournament)}
+                    />
+                  ))}
                 </div>
               )}
-              <Button variant="outline" onClick={onAddPlayer}>
-                <Plus size={13} style={{ marginRight: 5 }} />Agregar jugador
-              </Button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Button variant="outline" onClick={onAddPlayer}>
+                  <Plus size={13} style={{ marginRight: 5 }} />Agregar jugador
+                </Button>
+                {players.length > 0 && tournament && (
+                  <Button variant="outline" onClick={() => printCarnets(players, team, tournament)}>
+                    <Printer size={13} style={{ marginRight: 5 }} />Imprimir carnets
+                  </Button>
+                )}
+              </div>
             </div>
           </motion.div>
         )}
@@ -633,32 +754,55 @@ function TeamCard({ team, balance, onAddPlayer, onEditPlayer }: { team: Team; ba
   );
 }
 
-function PlayerRow({ player, onEdit }: { player: Player; onEdit: () => void }) {
+function PlayerRow({ player, onEdit, onPrint }: { player: Player; onEdit: () => void; onPrint: () => void }) {
   return (
     <div
-      onClick={onEdit}
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '6px 10px', borderRadius: 8,
         background: 'rgba(255,255,255,0.02)',
-        cursor: 'pointer',
         transition: 'background 0.12s',
       }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)'; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.02)'; }}
     >
-      {player.photoUrl ? (
-        <img src={player.photoUrl} alt={player.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-      ) : (
-        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }} />
-      )}
-      <span style={{
-        fontSize: 11, fontWeight: 700, color: '#64748b',
-        fontVariantNumeric: 'tabular-nums', width: 24, textAlign: 'right', flexShrink: 0,
-      }}>
-        #{player.dorsal}
-      </span>
-      <span style={{ fontSize: 13, color: '#cbd5e1', fontWeight: 500, flex: 1 }}>{player.name}</span>
+      <div onClick={onEdit} style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}>
+        {player.photoUrl ? (
+          <img src={player.photoUrl} alt={player.name} style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+        ) : (
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', flexShrink: 0 }} />
+        )}
+        <span style={{
+          fontSize: 11, fontWeight: 700, color: '#64748b',
+          fontVariantNumeric: 'tabular-nums', width: 24, textAlign: 'right', flexShrink: 0,
+        }}>
+          #{player.dorsal}
+        </span>
+        <span style={{ fontSize: 13, color: '#cbd5e1', fontWeight: 500 }}>{player.name}</span>
+      </div>
+      <button
+        onClick={onPrint}
+        title="Imprimir carnet"
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 24, height: 24, borderRadius: 6, flexShrink: 0,
+          background: 'transparent', border: '1px solid transparent',
+          cursor: 'pointer', color: '#475569',
+          transition: 'background 0.12s, color 0.12s, border-color 0.12s',
+        }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'rgba(16,185,129,0.1)';
+          (e.currentTarget as HTMLElement).style.color = '#10b981';
+          (e.currentTarget as HTMLElement).style.borderColor = 'rgba(16,185,129,0.2)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'transparent';
+          (e.currentTarget as HTMLElement).style.color = '#475569';
+          (e.currentTarget as HTMLElement).style.borderColor = 'transparent';
+        }}
+      >
+        <Printer size={12} />
+      </button>
     </div>
   );
 }
@@ -1423,6 +1567,116 @@ function StandingsTab({ teams, matches, format }: { teams: Team[]; matches: Matc
   );
 }
 
+// ─── Scorers Tab (admin) ──────────────────────────────────────────────────────
+function AdminScorersTab({ tournamentId }: { tournamentId: string }) {
+  const { data: scorers = [], isLoading } = useQuery({
+    queryKey: ['admin', 'scorers', tournamentId],
+    queryFn: () => publicApi.getScorersByTournamentId(tournamentId),
+  });
+
+  if (isLoading) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} style={{ height: 58, borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }} />
+      ))}
+    </div>
+  );
+
+  if (!scorers.length) return (
+    <div style={{
+      textAlign: 'center', padding: '60px 24px',
+      background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 16,
+    }}>
+      <Swords size={30} color="#1e293b" style={{ marginBottom: 12 }} />
+      <p style={{ color: '#475569', fontSize: 14, margin: 0, fontWeight: 500 }}>
+        Aún no hay goles registrados en este torneo.
+      </p>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {scorers.map((row: ScorerRow, i: number) => {
+        const isTop = i === 0;
+        const medalColor = i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#c2844a' : null;
+        return (
+          <motion.div
+            key={row.player.id}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.04, ease: [0.25, 0.46, 0.45, 0.94] }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 12,
+              padding: '12px 16px', borderRadius: 12,
+              background: isTop ? 'rgba(245,158,11,0.04)' : 'rgba(255,255,255,0.02)',
+              border: isTop ? '1px solid rgba(245,158,11,0.14)' : '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            <div style={{ width: 28, textAlign: 'center', flexShrink: 0 }}>
+              {medalColor ? (
+                <span style={{ fontSize: 16 }}>
+                  {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
+                </span>
+              ) : (
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>
+                  {i + 1}
+                </span>
+              )}
+            </div>
+
+            {row.player.photoUrl ? (
+              <img
+                src={row.player.photoUrl} alt={row.player.name}
+                style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255,255,255,0.08)' }}
+              />
+            ) : (
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                background: `linear-gradient(135deg, ${row.team.primaryColor ?? '#475569'}55, ${row.team.primaryColor ?? '#475569'}22)`,
+                border: `1px solid ${row.team.primaryColor ?? '#475569'}40`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 13, fontWeight: 800, color: row.team.primaryColor ?? '#64748b',
+              }}>
+                {row.player.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('')}
+              </div>
+            )}
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
+                {row.player.name}
+                <span style={{
+                  fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                  background: 'rgba(255,255,255,0.06)', color: '#64748b', fontWeight: 600,
+                }}>
+                  #{row.player.dorsal}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#475569', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
+                {row.team.primaryColor && (
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: row.team.primaryColor, flexShrink: 0 }} />
+                )}
+                {row.team.name}
+              </div>
+            </div>
+
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              background: isTop ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.04)',
+              border: isTop ? '1px solid rgba(245,158,11,0.2)' : '1px solid rgba(255,255,255,0.06)',
+              borderRadius: 10, padding: '6px 14px', flexShrink: 0,
+            }}>
+              <span style={{ fontSize: 20, fontWeight: 900, color: isTop ? '#f59e0b' : '#f1f5f9', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
+                {row.goals}
+              </span>
+              <span style={{ fontSize: 9, color: '#475569', fontWeight: 600, marginTop: 1 }}>GOLES</span>
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Balances Tab ─────────────────────────────────────────────────────────────
 
 const COP = (n: number) =>
@@ -1581,6 +1835,102 @@ function LedgerPanel({ teamId, tournamentId }: { teamId: string; tournamentId: s
       })}
     </div>
   );
+}
+
+// ─── Carnets ──────────────────────────────────────────────────────────────────
+
+const SPORT_LABEL_PRINT: Record<string, string> = { FOOTBALL: 'Fútbol', FUTSAL: 'Fútbol Sala' };
+
+function printCarnets(players: Player[], team: Team, tournament: Tournament) {
+  const accent = team.primaryColor ?? '#0d6e6e';
+  const sportLabel = SPORT_LABEL_PRINT[tournament.sportType] ?? tournament.sportType;
+
+  const carnetHTML = (player: Player): string => {
+    const nameParts = player.name.trim().split(' ');
+    const lastName = nameParts.pop() ?? '';
+    const firstName = nameParts.join(' ');
+    const initials = player.name.split(' ').map((w) => w[0] ?? '').join('').toUpperCase().slice(0, 2);
+
+    const photoHTML = player.photoUrl
+      ? `<img src="${player.photoUrl}" style="width:100%;height:100%;object-fit:cover;object-position:top center;display:block;" crossorigin="anonymous">`
+      : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:26pt;font-weight:900;color:rgba(255,255,255,0.25);">${initials}</div>`;
+
+    const logoHTML = team.logoUrl
+      ? `<img src="${team.logoUrl}" style="width:9mm;height:9mm;border-radius:50%;object-fit:cover;border:0.5mm solid rgba(255,255,255,0.5);flex-shrink:0;" crossorigin="anonymous">`
+      : `<div style="width:9mm;height:9mm;border-radius:50%;background:rgba(255,255,255,0.15);border:0.5mm solid rgba(255,255,255,0.3);display:flex;align-items:center;justify-content:center;font-size:4.5pt;font-weight:800;color:white;flex-shrink:0;">${team.name.slice(0, 2).toUpperCase()}</div>`;
+
+    const nameHTML = firstName
+      ? `<span style="font-weight:500;letter-spacing:0.1mm;">${firstName.toUpperCase()} </span><span style="font-weight:900;font-style:italic;">${lastName.toUpperCase()}</span>`
+      : `<span style="font-weight:900;font-style:italic;">${lastName.toUpperCase()}</span>`;
+
+    return `<div style="width:54mm;height:85.6mm;position:relative;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;background:${accent};break-inside:avoid;page-break-inside:avoid;border-radius:2.5mm;box-shadow:0 1mm 5mm rgba(0,0,0,0.28);">
+  <div style="position:absolute;right:-3mm;top:0mm;font-size:115pt;font-weight:900;color:rgba(255,255,255,0.12);line-height:0.85;font-style:italic;pointer-events:none;user-select:none;z-index:0;letter-spacing:-1mm;">${player.dorsal}</div>
+  <div style="position:absolute;top:0;left:0;right:0;bottom:18mm;z-index:1;overflow:hidden;">${photoHTML}</div>
+  <div style="position:absolute;top:0;left:0;right:0;height:16mm;z-index:2;background:linear-gradient(to bottom,rgba(0,0,0,0.45) 0%,transparent 100%);pointer-events:none;"></div>
+  <div style="position:absolute;bottom:18mm;left:0;right:0;height:10mm;z-index:2;background:linear-gradient(to bottom,transparent 0%,rgba(0,0,0,0.35) 100%);pointer-events:none;"></div>
+  <div style="position:absolute;top:0;left:0;right:0;z-index:3;padding:2.5mm 2.5mm 0;display:flex;align-items:flex-start;justify-content:space-between;">
+    <div>
+      <div style="font-size:4.5pt;font-weight:800;color:white;text-transform:uppercase;letter-spacing:0.3mm;text-shadow:0 0.3mm 2mm rgba(0,0,0,0.8);max-width:36mm;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tournament.name}</div>
+      <div style="font-size:3.5pt;color:rgba(255,255,255,0.65);text-transform:uppercase;letter-spacing:0.4mm;margin-top:0.3mm;text-shadow:0 0.2mm 1mm rgba(0,0,0,0.7);">${sportLabel}</div>
+      <img src="${window.location.origin}/logo.png" style="width:9mm;height:9mm;object-fit:contain;margin-top:1.5mm;display:block;filter:drop-shadow(0 0.3mm 1.5mm rgba(0,0,0,0.5));">
+    </div>
+    ${logoHTML}
+  </div>
+  <div style="position:absolute;bottom:0;left:0;right:0;z-index:4;">
+    <div style="background:rgba(0,0,0,0.78);border-top:0.35mm solid rgba(255,255,255,0.12);padding:2.8mm 3mm 1.5mm;">
+      <div style="font-size:8.5pt;color:white;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${nameHTML}</div>
+    </div>
+    <div style="background:rgba(0,0,0,0.60);padding:1.2mm 3mm 2mm;display:flex;align-items:center;gap:2mm;">
+      <span style="font-size:5.5pt;font-weight:900;color:white;background:rgba(255,255,255,0.16);padding:0.4mm 2mm;border-radius:0.8mm;letter-spacing:0.1mm;flex-shrink:0;">#${player.dorsal}</span>
+      <span style="font-size:5pt;color:rgba(255,255,255,0.8);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-transform:uppercase;letter-spacing:0.2mm;flex:1;">${team.name}</span>
+      ${(tournament.logoBgRemovedUrl ?? tournament.logoUrl) ? `<img src="${tournament.logoBgRemovedUrl ?? tournament.logoUrl}" style="width:6.5mm;height:6.5mm;object-fit:contain;flex-shrink:0;" crossorigin="anonymous">` : ''}
+    </div>
+  </div>
+</div>`;
+  };
+
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Cromos — ${team.name}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#e2e8f0;font-family:system-ui,sans-serif;}
+    @page{size:A4 portrait;margin:10mm;}
+    @media print{body{background:white;}.no-print{display:none!important;}}
+    .header{text-align:center;padding:8mm 0 5mm;}
+    .header h1{font-size:15pt;color:#0f172a;font-weight:800;}
+    .header p{font-size:9pt;color:#64748b;margin-top:1.5mm;}
+    .print-btn{display:inline-block;margin-top:4mm;padding:7px 22px;background:${accent};color:white;border:none;border-radius:6px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:0.3px;}
+    .grid{display:grid;grid-template-columns:repeat(3,54mm);gap:7mm;padding:2mm 0;justify-content:center;}
+  </style>
+</head>
+<body>
+  <div class="no-print">
+    <div class="header">
+      <h1>Cromos — ${team.name}</h1>
+      <p>${players.length} jugador${players.length !== 1 ? 'es' : ''} &nbsp;·&nbsp; ${tournament.name}</p>
+      <button class="print-btn" onclick="window.print()">🖨️ Imprimir</button>
+    </div>
+  </div>
+  <div class="grid">
+    ${players.map((p) => `<div>${carnetHTML(p)}</div>`).join('\n    ')}
+  </div>
+</body>
+</html>`;
+
+  const win = window.open('', '_blank', 'width=960,height=750');
+  if (!win) {
+    // eslint-disable-next-line no-alert
+    alert('Habilitá las ventanas emergentes del navegador para poder imprimir.');
+    return;
+  }
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+  win.focus();
+  setTimeout(() => win.print(), 1000);
 }
 
 // ─── Shared primitives ────────────────────────────────────────────────────────

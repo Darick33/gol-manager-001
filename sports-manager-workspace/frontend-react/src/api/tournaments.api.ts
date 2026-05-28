@@ -6,7 +6,7 @@ export const tournamentsApi = {
   getById: (id: string) => apiClient.get<Tournament>(`/tournaments/id/${id}`).then((r) => r.data),
   create: (data: Omit<Tournament, 'id' | 'slug' | 'status' | 'createdAt' | 'category'>) =>
     apiClient.post<Tournament>('/tournaments', data).then((r) => r.data),
-  update: (id: string, data: Partial<Pick<Tournament, 'status'>>) =>
+  update: (id: string, data: Partial<Tournament>) =>
     apiClient.patch<Tournament>(`/tournaments/${id}`, data).then((r) => r.data),
   generateFixture: (id: string) =>
     apiClient.post<{ matchesCreated: number; matches: Match[] }>(`/tournaments/${id}/fixture`).then((r) => r.data),

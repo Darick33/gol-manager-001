@@ -43,15 +43,7 @@ export default function Navbar() {
       }}>
         {/* Logo */}
         <a href="#" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: 'linear-gradient(135deg, #10b981, #059669)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 20px rgba(16, 185, 129, 0.4)',
-            flexShrink: 0,
-          }}>
-            <Trophy size={18} color="white" />
-          </div>
+          <img src="/logo.png" alt="GolManager" style={{ width: 36, height: 36, borderRadius: 10, objectFit: 'contain', flexShrink: 0 }} />
           <span style={{ fontWeight: 700, fontSize: 18, color: '#f8fafc', letterSpacing: '-0.3px' }}>
             Gol<span style={{ color: '#10b981' }}>Manager</span>
           </span>
@@ -94,6 +86,27 @@ export default function Navbar() {
           </button>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <a
+              href="/portal"
+              style={{
+                color: '#10b981', textDecoration: 'none',
+                padding: '10px 18px', borderRadius: 10,
+                fontSize: 14, fontWeight: 600,
+                border: '1px solid rgba(16,185,129,0.25)',
+                background: 'rgba(16,185,129,0.06)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(16,185,129,0.12)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(16,185,129,0.4)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'rgba(16,185,129,0.06)';
+                (e.currentTarget as HTMLElement).style.borderColor = 'rgba(16,185,129,0.25)';
+              }}
+            >
+              Ver torneos
+            </a>
             <a
               href="/login"
               style={{
@@ -167,11 +180,25 @@ export default function Navbar() {
                 </a>
               ))}
               <a
+                href="/portal"
+                onClick={() => setMenuOpen(false)}
+                style={{
+                  color: '#10b981', textDecoration: 'none',
+                  padding: '14px 20px', borderRadius: 12, marginTop: 10,
+                  fontSize: 15, fontWeight: 600, textAlign: 'center',
+                  minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  border: '1px solid rgba(16,185,129,0.25)',
+                  background: 'rgba(16,185,129,0.07)',
+                }}
+              >
+                Ver torneos
+              </a>
+              <a
                 href="/login"
                 onClick={() => setMenuOpen(false)}
                 style={{
                   color: '#f1f5f9', textDecoration: 'none',
-                  padding: '14px 20px', borderRadius: 12, marginTop: 10,
+                  padding: '14px 20px', borderRadius: 12, marginTop: 8,
                   fontSize: 15, fontWeight: 600, textAlign: 'center',
                   minHeight: 44, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   border: '1px solid rgba(255,255,255,0.12)',

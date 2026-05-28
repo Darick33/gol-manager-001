@@ -11,12 +11,18 @@ import MatchesPage from './pages/admin/MatchesPage';
 import TeamsPage from './pages/admin/TeamsPage';
 import FinesPage from './pages/admin/FinesPage';
 import PaymentsPage from './pages/admin/PaymentsPage';
+import PublicPortalPage from './pages/public/PublicPortalPage';
+import PublicTournamentPage from './pages/public/PublicTournamentPage';
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+
+      {/* Public portal — no auth required */}
+      <Route path="/portal" element={<PublicPortalPage />} />
+      <Route path="/portal/:slug" element={<PublicTournamentPage />} />
 
       {/* Standalone vocalia panel — opens in new window, no AdminLayout */}
       <Route

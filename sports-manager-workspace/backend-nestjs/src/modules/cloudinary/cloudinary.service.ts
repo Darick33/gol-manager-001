@@ -26,4 +26,21 @@ export class CloudinaryService implements OnModuleInit {
       stream.end(buffer);
     });
   }
+
+  async removeBackground(buffer: Buffer): Promise<Buffer> {
+    const { removeBackground } = await import('@imgly/background-removal-node');
+    const inputBlob = new Blob([new Uint8Array(buffer)], { type: this.detectMime(buffer) });
+    const resultBlob = await removeBackground(inputBlob, {
+      model: 'small',
+      output: { format: 'image/png', quality: 1 },
+    });
+    return Buffer.from(await resultBlob.arrayBuffer());
+  }
+
+  private detectMime(buf: Buffer): string {
+    if (buf[0] === 0x89 && buf[1] === 0x50) return 'image/png';
+    if (buf[0] === 0xff && buf[1] === 0xd8) return 'image/jpeg';
+    if (buf.length >= 12 && buf[8] === 0x57 && buf[9] === 0x45) return 'image/webp';
+    return 'image/jpeg';
+  }
 }
