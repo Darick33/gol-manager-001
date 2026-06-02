@@ -9,14 +9,16 @@ import { TeamsModule } from '../teams/teams.module';
 import { TournamentsModule } from '../tournaments/tournaments.module';
 import { UsersModule } from '../users/users.module';
 import { MatchEventsRepository } from './match-events.repository';
+import { MatchOrchestrationService } from './match-orchestration.service';
 import { MatchesController } from './matches.controller';
 import { MatchesRepository } from './matches.repository';
+import { MatchesService } from './matches.service';
 import { MatchTimerService } from './vocalia/match-timer.service';
 import { VocaliaGateway } from './vocalia/vocalia.gateway';
 
 @Module({
   imports: [AuthModule, TeamsModule, UsersModule, FinesModule, PdfModule, NotificationsModule, PaymentsModule, BalanceModule, forwardRef(() => TournamentsModule)],
-  providers: [MatchesRepository, MatchEventsRepository, MatchTimerService, VocaliaGateway],
+  providers: [MatchesRepository, MatchEventsRepository, MatchTimerService, VocaliaGateway, MatchOrchestrationService, MatchesService],
   controllers: [MatchesController],
   exports: [MatchesRepository, MatchEventsRepository],
 })

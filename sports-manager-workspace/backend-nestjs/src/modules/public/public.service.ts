@@ -1,64 +1,28 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray } from 'drizzle-orm';
-import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { DRIZZLE } from '../../database/database.module';
-import * as schema from '../../database/schema';
+import { Injectable } from '@nestjs/common';
+import { PublicRepository } from './public.repository';
 
 @Injectable()
 export class PublicService {
-  constructor(@Inject(DRIZZLE) private db: PostgresJsDatabase<typeof schema>) {}
+  constructor(private publicRepository: PublicRepository) {}
 
-  async getActiveTournaments() {
-    return this.db
-      .select()
-      .from(schema.tournaments)
-      .where(inArray(schema.tournaments.status, ['ACTIVE', 'FINISHED']));
+  getActiveTournaments() {
+    return this.publicRepository.getActiveTournaments();
   }
 
   async getTournamentBySlug(slug: string) {
-    const [tournament] = await this.db
-      .select()
-      .from(schema.tournaments)
-      .where(eq(schema.tournaments.slug, slug))
-      .limit(1);
+    const tournament = await this.publicRepository.getTournamentBySlug(slug);
     if (!tournament) return null;
-
-    const teams = await this.db
-      .select({
-        id: schema.teams.id,
-        name: schema.teams.name,
-        logoUrl: schema.teams.logoUrl,
-        primaryColor: schema.teams.primaryColor,
-        secondaryColor: schema.teams.secondaryColor,
-      })
-      .from(schema.teams)
-      .where(eq(schema.teams.tournamentId, tournament.id));
-
+    const teams = await this.publicRepository.getTeamsByTournament(tournament.id);
     return { ...tournament, teams };
   }
 
   async getMatchesBySlug(slug: string) {
-    const [tournament] = await this.db
-      .select({ id: schema.tournaments.id })
-      .from(schema.tournaments)
-      .where(eq(schema.tournaments.slug, slug))
-      .limit(1);
+    const tournament = await this.publicRepository.getTournamentBySlug(slug);
     if (!tournament) return null;
 
     const [matches, teams] = await Promise.all([
-      this.db
-        .select()
-        .from(schema.matches)
-        .where(eq(schema.matches.tournamentId, tournament.id)),
-      this.db
-        .select({
-          id: schema.teams.id,
-          name: schema.teams.name,
-          logoUrl: schema.teams.logoUrl,
-          primaryColor: schema.teams.primaryColor,
-        })
-        .from(schema.teams)
-        .where(eq(schema.teams.tournamentId, tournament.id)),
+      this.publicRepository.getMatchesByTournament(tournament.id),
+      this.publicRepository.getTeamsByTournament(tournament.id),
     ]);
 
     const teamMap = new Map(teams.map((t) => [t.id, t]));
@@ -98,37 +62,12 @@ export class PublicService {
   }
 
   async getStandingsBySlug(slug: string) {
-    const [tournament] = await this.db
-      .select({ id: schema.tournaments.id })
-      .from(schema.tournaments)
-      .where(eq(schema.tournaments.slug, slug))
-      .limit(1);
+    const tournament = await this.publicRepository.getTournamentBySlug(slug);
     if (!tournament) return null;
 
     const [teams, finishedMatches] = await Promise.all([
-      this.db
-        .select({
-          id: schema.teams.id,
-          name: schema.teams.name,
-          logoUrl: schema.teams.logoUrl,
-          primaryColor: schema.teams.primaryColor,
-        })
-        .from(schema.teams)
-        .where(eq(schema.teams.tournamentId, tournament.id)),
-      this.db
-        .select({
-          homeTeamId: schema.matches.homeTeamId,
-          awayTeamId: schema.matches.awayTeamId,
-          homeScore: schema.matches.homeScore,
-          awayScore: schema.matches.awayScore,
-        })
-        .from(schema.matches)
-        .where(
-          and(
-            eq(schema.matches.tournamentId, tournament.id),
-            eq(schema.matches.status, 'FINISHED'),
-          ),
-        ),
+      this.publicRepository.getTeamsByTournament(tournament.id),
+      this.publicRepository.getFinishedMatchesByTournament(tournament.id),
     ]);
 
     const stats = new Map<string, { w: number; d: number; l: number; gf: number; ga: number }>();
@@ -174,25 +113,11 @@ export class PublicService {
   }
 
   async getScorersByTournamentId(tournamentId: string) {
-    const matches = await this.db
-      .select({ id: schema.matches.id })
-      .from(schema.matches)
-      .where(eq(schema.matches.tournamentId, tournamentId));
+    const matchRows = await this.publicRepository.getMatchIdsByTournament(tournamentId);
+    if (!matchRows.length) return [];
 
-    if (!matches.length) return [];
-
-    const matchIds = matches.map((m) => m.id);
-
-    const goalEvents = await this.db
-      .select({ playerId: schema.matchEvents.playerId, teamId: schema.matchEvents.teamId })
-      .from(schema.matchEvents)
-      .where(
-        and(
-          inArray(schema.matchEvents.matchId, matchIds),
-          eq(schema.matchEvents.eventType, 'GOAL'),
-        ),
-      );
-
+    const matchIds = matchRows.map((m) => m.id);
+    const goalEvents = await this.publicRepository.getGoalEventsByMatches(matchIds);
     if (!goalEvents.length) return [];
 
     const goalMap = new Map<string, { teamId: string; goals: number }>();
@@ -208,14 +133,8 @@ export class PublicService {
     const teamIds = [...new Set([...goalMap.values()].map((v) => v.teamId))];
 
     const [players, teams] = await Promise.all([
-      this.db
-        .select({ id: schema.players.id, name: schema.players.name, dorsal: schema.players.dorsal, photoUrl: schema.players.photoUrl, teamId: schema.players.teamId })
-        .from(schema.players)
-        .where(inArray(schema.players.id, playerIds)),
-      this.db
-        .select({ id: schema.teams.id, name: schema.teams.name, logoUrl: schema.teams.logoUrl, primaryColor: schema.teams.primaryColor })
-        .from(schema.teams)
-        .where(inArray(schema.teams.id, teamIds)),
+      this.publicRepository.getPlayersByIds(playerIds),
+      this.publicRepository.getTeamsByIds(teamIds),
     ]);
 
     const teamMap = new Map(teams.map((t) => [t.id, t]));
@@ -230,21 +149,13 @@ export class PublicService {
   }
 
   async getScorersBySlug(slug: string) {
-    const [tournament] = await this.db
-      .select({ id: schema.tournaments.id })
-      .from(schema.tournaments)
-      .where(eq(schema.tournaments.slug, slug))
-      .limit(1);
+    const tournament = await this.publicRepository.getTournamentBySlug(slug);
     if (!tournament) return null;
     return this.getScorersByTournamentId(tournament.id);
   }
 
   async getLiveMatches() {
-    const liveMatches = await this.db
-      .select()
-      .from(schema.matches)
-      .where(eq(schema.matches.status, 'IN_PROGRESS'));
-
+    const liveMatches = await this.publicRepository.getLiveMatches();
     if (!liveMatches.length) return [];
 
     const teamIds = [
@@ -254,16 +165,7 @@ export class PublicService {
       ]),
     ];
 
-    const teams = await this.db
-      .select({
-        id: schema.teams.id,
-        name: schema.teams.name,
-        logoUrl: schema.teams.logoUrl,
-        primaryColor: schema.teams.primaryColor,
-      })
-      .from(schema.teams)
-      .where(inArray(schema.teams.id, teamIds));
-
+    const teams = await this.publicRepository.getTeamsByIds(teamIds);
     const teamMap = new Map(teams.map((t) => [t.id, t]));
 
     return liveMatches.map((m) => ({
