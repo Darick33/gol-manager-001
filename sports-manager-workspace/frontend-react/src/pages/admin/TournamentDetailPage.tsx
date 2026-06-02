@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Trophy, Users, Calendar, BarChart2, Plus,
   ChevronDown, ChevronUp, X, Loader2, Play, Swords, Shield,
-  Check, ExternalLink, FileDown, Settings, Pencil, Printer,
+  ExternalLink, FileDown, Settings, Pencil, Printer,
   Lock, LockOpen,
 } from 'lucide-react';
 import { tournamentsApi } from '../../api/tournaments.api';
@@ -38,6 +38,29 @@ const MATCH_STATUS = {
 };
 
 type Tab = 'teams' | 'fixture' | 'standings' | 'scorers' | 'balances' | 'config';
+
+function TeamLogo({ team, size = 24 }: { team: Team | undefined; size?: number }) {
+  const [imgError, setImgError] = useState(false);
+  if (!team) return null;
+  const primary = team.primaryColor ?? '#475569';
+  return team.logoUrl && !imgError ? (
+    <img
+      src={team.logoUrl} alt={team.name}
+      onError={() => setImgError(true)}
+      style={{ width: size, height: size, borderRadius: size * 0.28, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255,255,255,0.08)' }}
+    />
+  ) : (
+    <div style={{
+      width: size, height: size, borderRadius: size * 0.28, flexShrink: 0,
+      background: `linear-gradient(135deg, ${primary}55, ${primary}22)`,
+      border: `1px solid ${primary}35`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.33, fontWeight: 800, color: primary,
+    }}>
+      {team.name.slice(0, 2).toUpperCase()}
+    </div>
+  );
+}
 
 function computeStandings(teams: Team[], matches: Match[]) {
   const stats: Record<string, { played: number; won: number; drawn: number; lost: number; gf: number; ga: number; pts: number }> = {};
@@ -1438,52 +1461,33 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
         <div style={{
           borderTop: '1px solid rgba(255,255,255,0.04)',
           padding: '7px 16px',
-          display: 'flex', flexDirection: 'column', gap: 5,
+          display: 'flex', alignItems: 'center', gap: 8,
           background: 'rgba(0,0,0,0.12)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Calendar size={11} color="#334155" style={{ flexShrink: 0 }} />
-            {editing ? (
-              <>
-                <input
-                  type="datetime-local"
-                  value={dateValue}
-                  onChange={(e) => setDateValue(e.target.value)}
-                  style={{
-                    background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)',
-                    borderRadius: 7, padding: '4px 8px',
-                    color: '#f1f5f9', fontSize: 12, outline: 'none', colorScheme: 'dark', flex: 1,
-                  }}
-                />
-                <button
-                  onClick={(e) => { e.stopPropagation(); saveSchedule.mutate(); }}
-                  disabled={saveSchedule.isPending}
-                  style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600 }}
-                >
-                  {saveSchedule.isPending ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> : <><Check size={11} />Guardar</>}
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setEditing(false); setSaveError(null); setDateValue(match.scheduledAt?.slice(0, 16) ?? ''); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', fontSize: 11, padding: '4px 6px', borderRadius: 6 }}
-                >
-                  Cancelar
-                </button>
-              </>
-            ) : (
-              <>
-                <span style={{ fontSize: 12, color: formattedDate ? '#64748b' : '#2d3748', flex: 1 }}>
-                  {formattedDate ?? 'Sin fecha asignada'}
-                </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#334155', display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '3px 6px', borderRadius: 6 }}
-                >
-                  <Pencil size={10} /> Editar
-                </button>
-              </>
-            )}
-          </div>
-          {saveError && <span style={{ fontSize: 11, color: '#f87171', paddingLeft: 19 }}>{saveError}</span>}
+          <Calendar size={11} color="#334155" style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: formattedDate ? '#64748b' : '#2d3748', flex: 1 }}>
+            {formattedDate ?? 'Sin fecha asignada'}
+          </span>
+          <button
+            onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+              borderRadius: 6, padding: '3px 9px', cursor: 'pointer',
+              color: '#475569', fontSize: 11, fontWeight: 600,
+              transition: 'background 0.15s, color 0.15s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(16,185,129,0.1)';
+              e.currentTarget.style.color = '#10b981';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+              e.currentTarget.style.color = '#475569';
+            }}
+          >
+            <Pencil size={10} /> Editar
+          </button>
         </div>
       )}
       <AnimatePresence>
@@ -1496,6 +1500,46 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
             onClose={() => setShowPayment(false)}
             onSuccess={() => qc.invalidateQueries({ queryKey: ['match-events', match.id] })}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editing && (
+          <Modal onClose={() => { setEditing(false); setSaveError(null); setDateValue(match.scheduledAt?.slice(0, 16) ?? ''); }}>
+            <h2 style={modalTitle}>Programar partido</h2>
+            <p style={{ fontSize: 13, color: '#475569', marginBottom: 20 }}>
+              <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{home?.name ?? '—'}</span>
+              <span style={{ color: '#334155', margin: '0 8px' }}>vs</span>
+              <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{away?.name ?? '—'}</span>
+            </p>
+            <form
+              onSubmit={(e) => { e.preventDefault(); saveSchedule.mutate(); }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+            >
+              <Field label="Fecha y hora">
+                <input
+                  type="datetime-local"
+                  value={dateValue}
+                  onChange={(e) => setDateValue(e.target.value)}
+                  style={{ ...inputStyle, colorScheme: 'dark' }}
+                  autoFocus
+                />
+              </Field>
+              {saveError && (
+                <span style={{ fontSize: 12, color: '#f87171', marginTop: -8 }}>{saveError}</span>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <Button variant="outline" type="button" onClick={() => { setEditing(false); setSaveError(null); setDateValue(match.scheduledAt?.slice(0, 16) ?? ''); }}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={saveSchedule.isPending}>
+                  {saveSchedule.isPending
+                    ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                    : 'Guardar'}
+                </Button>
+              </div>
+            </form>
+          </Modal>
         )}
       </AnimatePresence>
     </div>
@@ -1548,7 +1592,12 @@ function StandingsTab({ teams, matches, format }: { teams: Team[]; matches: Matc
               }}
             >
               <td style={{ ...col, textAlign: 'center', color: i === 0 ? '#10b981' : '#64748b', fontWeight: 700 }}>{i + 1}</td>
-              <td style={{ ...col, color: '#f1f5f9', fontWeight: 600 }}>{team?.name ?? '—'}</td>
+              <td style={{ ...col, color: '#f1f5f9', fontWeight: 600 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TeamLogo team={team} size={24} />
+                  {team?.name ?? '—'}
+                </div>
+              </td>
               <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{played}</td>
               <td style={{ ...col, textAlign: 'center', color: '#10b981', fontWeight: 600 }}>{won}</td>
               <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{drawn}</td>
@@ -1898,7 +1947,11 @@ function printCarnets(players: Player[], team: Team, tournament: Tournament) {
     *{box-sizing:border-box;margin:0;padding:0;}
     body{background:#e2e8f0;font-family:system-ui,sans-serif;}
     @page{size:A4 portrait;margin:10mm;}
-    @media print{body{background:white;}.no-print{display:none!important;}}
+    @media print{
+      body{background:white;}
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+      .no-print{display:none!important;}
+    }
     .header{text-align:center;padding:8mm 0 5mm;}
     .header h1{font-size:15pt;color:#0f172a;font-weight:800;}
     .header p{font-size:9pt;color:#64748b;margin-top:1.5mm;}
@@ -1917,6 +1970,9 @@ function printCarnets(players: Player[], team: Team, tournament: Tournament) {
   <div class="grid">
     ${players.map((p) => `<div>${carnetHTML(p)}</div>`).join('\n    ')}
   </div>
+  <script>
+    window.addEventListener('load', function() { setTimeout(window.print, 400); });
+  </script>
 </body>
 </html>`;
 
@@ -1930,7 +1986,6 @@ function printCarnets(players: Player[], team: Team, tournament: Tournament) {
   win.document.write(html);
   win.document.close();
   win.focus();
-  setTimeout(() => win.print(), 1000);
 }
 
 // ─── Shared primitives ────────────────────────────────────────────────────────

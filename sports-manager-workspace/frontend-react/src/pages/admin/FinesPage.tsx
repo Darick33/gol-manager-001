@@ -35,9 +35,12 @@ function formatDate(iso: string): string {
 // ── TeamAvatar ─────────────────────────────────────────────────────────────
 function TeamAvatar({ team, size = 36 }: { team: Team; size?: number }) {
   const primary = team.primaryColor ?? '#475569';
-  return team.logoUrl ? (
+  const [imgError, setImgError] = useState(false);
+
+  return team.logoUrl && !imgError ? (
     <img
       src={team.logoUrl} alt={team.name}
+      onError={() => setImgError(true)}
       style={{ width: size, height: size, borderRadius: size * 0.28, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255,255,255,0.08)' }}
     />
   ) : (
