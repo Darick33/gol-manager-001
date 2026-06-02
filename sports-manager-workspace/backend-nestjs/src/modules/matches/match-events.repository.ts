@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull, or, between } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { DRIZZLE } from '../../database/database.module';
 import * as schema from '../../database/schema';
@@ -20,11 +20,32 @@ export class MatchEventsRepository {
     return event;
   }
 
+  async findById(eventId: string) {
+    const [event] = await this.db
+      .select()
+      .from(schema.matchEvents)
+      .where(eq(schema.matchEvents.id, eventId))
+      .limit(1);
+    return event ?? null;
+  }
+
   async findByMatch(matchId: string) {
     return this.db
       .select()
       .from(schema.matchEvents)
       .where(eq(schema.matchEvents.matchId, matchId));
+  }
+
+  async findActiveByMatch(matchId: string) {
+    return this.db
+      .select()
+      .from(schema.matchEvents)
+      .where(
+        and(
+          eq(schema.matchEvents.matchId, matchId),
+          isNull(schema.matchEvents.cancelledAt),
+        ),
+      );
   }
 
   async findByMatchWithPlayers(matchId: string) {
@@ -38,6 +59,7 @@ export class MatchEventsRepository {
         eventType: schema.matchEvents.eventType,
         minute: schema.matchEvents.minute,
         createdAt: schema.matchEvents.createdAt,
+        cancelledAt: schema.matchEvents.cancelledAt,
         playerName: schema.players.name,
         playerDorsal: schema.players.dorsal,
       })
@@ -55,8 +77,43 @@ export class MatchEventsRepository {
           eq(schema.matchEvents.matchId, matchId),
           eq(schema.matchEvents.playerId, playerId),
           eq(schema.matchEvents.eventType, 'YELLOW_CARD'),
+          isNull(schema.matchEvents.cancelledAt),
         ),
       );
     return rows.length;
+  }
+
+  async cancelById(eventId: string, cancelledById: string, reason: string) {
+    const [event] = await this.db
+      .update(schema.matchEvents)
+      .set({
+        cancelledAt: new Date(),
+        cancelledById,
+        cancelReason: reason,
+      })
+      .where(eq(schema.matchEvents.id, eventId))
+      .returning();
+    return event;
+  }
+
+  async findLinkedRed(matchId: string, playerId: string, minute: number) {
+    const rows = await this.db
+      .select()
+      .from(schema.matchEvents)
+      .where(
+        and(
+          eq(schema.matchEvents.matchId, matchId),
+          eq(schema.matchEvents.playerId, playerId),
+          eq(schema.matchEvents.eventType, 'RED_CARD'),
+          isNull(schema.matchEvents.cancelledAt),
+          or(
+            eq(schema.matchEvents.minute, minute),
+            eq(schema.matchEvents.minute, minute - 1),
+            eq(schema.matchEvents.minute, minute + 1),
+          ),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
   }
 }

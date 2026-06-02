@@ -37,6 +37,7 @@ export interface VocaliaSocketState {
   setAwayColor: (c: string) => void;
   socketRef: React.MutableRefObject<Socket | null>;
   fetchFines: () => Promise<void>;
+  cancelEvent: (eventId: string, reason: string) => void;
 }
 
 export function useVocaliaSocket(matchId: string | undefined, token: string | null): VocaliaSocketState {
@@ -154,8 +155,32 @@ export function useVocaliaSocket(matchId: string | undefined, token: string | nu
       setTimeout(() => setExpulsionAlert(null), 6000);
     });
 
+    socket.on(
+      'event_cancelled',
+      (data: { eventId: string; cascadedEventId?: string; newScore?: { homeScore: number; awayScore: number } }) => {
+        const cancelledIds = new Set([data.eventId, data.cascadedEventId].filter(Boolean) as string[]);
+        setEvents((prev) =>
+          prev.map((e) =>
+            cancelledIds.has(e.id) ? { ...e, cancelledAt: new Date().toISOString() } : e,
+          ),
+        );
+        if (data.newScore) {
+          setMatch((m) => (m ? { ...m, homeScore: data.newScore!.homeScore, awayScore: data.newScore!.awayScore } : m));
+        }
+      },
+    );
+
+    socket.on('cancel_event_error', ({ message }: { message: string }) => {
+      console.error('[vocalia] cancel_event_error:', message);
+    });
+
     return () => socket.disconnect();
   }, [matchId, token, fetchTeams, fetchFines]);
+
+  const cancelEvent = useCallback((eventId: string, reason: string) => {
+    if (!matchId || !socketRef.current) return;
+    socketRef.current.emit('cancel_event', { matchId, eventId, reason });
+  }, [matchId]);
 
   return {
     connected,
@@ -177,5 +202,6 @@ export function useVocaliaSocket(matchId: string | undefined, token: string | nu
     setAwayColor,
     socketRef,
     fetchFines,
+    cancelEvent,
   };
 }

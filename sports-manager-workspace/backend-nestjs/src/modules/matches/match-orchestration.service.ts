@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { FinesRepository } from '../fines/fines.repository';
 import { FinesService } from '../fines/fines.service';
 import { WhatsappService } from '../notifications/whatsapp.service';
 import { PaymentsRepository } from '../payments/payments.repository';
@@ -32,6 +33,13 @@ export interface RegisterEventResult {
   };
 }
 
+export interface CancelEventResult {
+  cancelledEventId: string;
+  fine?: object;
+  newScore?: { homeScore: number; awayScore: number };
+  cascadedExpulsion?: CancelEventResult;
+}
+
 @Injectable()
 export class MatchOrchestrationService {
   constructor(
@@ -41,6 +49,7 @@ export class MatchOrchestrationService {
     private teamsRepository: TeamsRepository,
     private usersRepository: UsersRepository,
     private finesService: FinesService,
+    private finesRepository: FinesRepository,
     private pdfService: PdfService,
     private whatsappService: WhatsappService,
     private paymentsRepository: PaymentsRepository,
@@ -83,6 +92,70 @@ export class MatchOrchestrationService {
     return result;
   }
 
+  async cancelEvent(
+    eventId: string,
+    cancelledById: string,
+    reason: string,
+    _matchStatus: 'IN_PROGRESS' | 'FINISHED',
+  ): Promise<CancelEventResult> {
+    // 1. Load the event
+    const event = await this.matchEventsRepository.findById(eventId);
+    if (!event) throw new NotFoundException('Evento no encontrado');
+    if (event.cancelledAt) throw new BadRequestException('El evento ya fue anulado');
+
+    // 2. Load associated fine (if any)
+    const fine = await this.finesRepository.findByMatchEventId(eventId);
+    if (fine && fine.status === 'PAID' && !fine.cancelledAt) {
+      throw new ConflictException('No se puede anular un evento con multa ya pagada');
+    }
+
+    // 3. Cancel the main event
+    await this.matchEventsRepository.cancelById(eventId, cancelledById, reason);
+
+    // 4. If there is a fine → cancel fine + reverse balance
+    if (fine && !fine.cancelledAt) {
+      await this.finesRepository.cancelByMatchEventId(eventId);
+      await this.balanceService.reverseFineCharge({
+        teamId: fine.teamId,
+        tournamentId: fine.tournamentId,
+        matchId: fine.matchId ?? null,
+        fineId: fine.id,
+        amount: fine.amount,
+      });
+    }
+
+    // 5. If YELLOW_CARD → look for a chained RED_CARD from the same player at same minute
+    let cascadedExpulsion: CancelEventResult | undefined;
+    if (event.eventType === 'YELLOW_CARD' && event.playerId) {
+      const linkedRed = await this.matchEventsRepository.findLinkedRed(
+        event.matchId,
+        event.playerId,
+        event.minute,
+      );
+      if (linkedRed && !linkedRed.cancelledAt) {
+        cascadedExpulsion = await this.cancelEvent(
+          linkedRed.id,
+          cancelledById,
+          'Anulación en cascada por amarilla anulada',
+          _matchStatus,
+        );
+      }
+    }
+
+    // 6. If GOAL → recalculate score using only active events
+    let newScore: { homeScore: number; awayScore: number } | undefined;
+    if (event.eventType === 'GOAL') {
+      newScore = await this.recalculateScore(event.matchId) ?? undefined;
+    }
+
+    return {
+      cancelledEventId: eventId,
+      fine: fine ?? undefined,
+      newScore,
+      cascadedExpulsion,
+    };
+  }
+
   async closeMatch(matchId: string): Promise<{ closedMatch: object }> {
     const match = await this.matchesRepository.findById(matchId);
     if (!match) throw new NotFoundException('Partido no encontrado');
@@ -102,7 +175,7 @@ export class MatchOrchestrationService {
   private async recalculateScore(matchId: string) {
     const match = await this.matchesRepository.findById(matchId);
     if (!match) return null;
-    const events = await this.matchEventsRepository.findByMatch(matchId);
+    const events = await this.matchEventsRepository.findActiveByMatch(matchId);
     const homeScore = events.filter((e) => e.eventType === 'GOAL' && e.teamId === match.homeTeamId).length;
     const awayScore = events.filter((e) => e.eventType === 'GOAL' && e.teamId === match.awayTeamId).length;
     await this.matchesRepository.updateScore(matchId, homeScore, awayScore);
@@ -237,7 +310,7 @@ export class MatchOrchestrationService {
           delegate.whatsappNumber,
           pdfBuffer,
           `acta-${matchId}.pdf`,
-          `⚽ Acta del partido: ${homeTeam.name} vs ${awayTeam?.name}`,
+          `Acta del partido: ${homeTeam.name} vs ${awayTeam?.name}`,
         );
       }
     }

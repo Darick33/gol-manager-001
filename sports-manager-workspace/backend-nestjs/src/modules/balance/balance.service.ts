@@ -75,6 +75,24 @@ export class BalanceService {
     return { balance, ledger };
   }
 
+  reverseFineCharge(params: {
+    teamId: string;
+    tournamentId: string;
+    matchId: string | null;
+    fineId: string;
+    amount: number;
+  }) {
+    return this.balanceRepository.recordEntry({
+      teamId: params.teamId,
+      tournamentId: params.tournamentId,
+      matchId: params.matchId,
+      fineId: params.fineId,
+      type: 'FINE_REVERSAL',
+      amount: params.amount, // positive = credit
+      description: 'Reversión de multa por anulación de evento',
+    });
+  }
+
   getTournamentBalances(tournamentId: string) {
     return this.balanceRepository.getAllForTournament(tournamentId);
   }

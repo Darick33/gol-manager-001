@@ -56,6 +56,7 @@ export default function VocaliaPage() {
     setAwayColor,
     socketRef,
     fetchFines,
+    cancelEvent,
   } = useVocaliaSocket(matchId, token);
 
   const [homeLogoError, setHomeLogoError] = useState(false);
@@ -76,6 +77,8 @@ export default function VocaliaPage() {
   const [fineSuccess, setFineSuccess] = useState(false);
 
   const [paymentTeamId, setPaymentTeamId] = useState<string | null>(null);
+  const [cancelConfirmId, setCancelConfirmId] = useState<string | null>(null);
+  const [cancelInFlight, setCancelInFlight] = useState(false);
 
   // ── Socket actions ────────────────────────────────────────────────────────
 
@@ -118,6 +121,16 @@ export default function VocaliaPage() {
     if (selectedPlayerOutId) payload.playerOutId = selectedPlayerOutId;
     socketRef.current?.emit('register_event', payload);
     setEventModal(null);
+  };
+
+  // ── Cancel event ─────────────────────────────────────────────────────────
+
+  const handleCancelEvent = (eventId: string) => {
+    if (cancelInFlight) return;
+    setCancelInFlight(true);
+    cancelEvent(eventId, 'Corrección vocal');
+    setCancelConfirmId(null);
+    setTimeout(() => setCancelInFlight(false), 1500);
   };
 
   // ── Fine modal ────────────────────────────────────────────────────────────
@@ -392,11 +405,54 @@ export default function VocaliaPage() {
         {/* ── Event log (always visible, capped) ── */}
         {eventLog.length > 0 && (
           <div className="shrink-0 border-t border-gray-800/50 mx-4 pt-3 pb-3 max-h-[160px] overflow-y-auto">
-            <EventLogGrid
-              events={eventLog}
-              homeTeamId={match.homeTeamId}
-              getPlayerName={getPlayerName}
-            />
+            <div className="flex flex-col gap-1.5">
+              {eventLog.map((event) => {
+                const isCancelled = !!event.cancelledAt;
+                const playerName = getPlayerName(event.playerId);
+                const isHome = event.teamId === match.homeTeamId;
+                return (
+                  <div
+                    key={event.id}
+                    className={`flex items-center gap-2 px-2 py-1 rounded-lg ${isCancelled ? 'opacity-40' : ''}`}
+                  >
+                    <span className="text-[10px] text-gray-600 tabular-nums w-8 shrink-0">{event.minute}'</span>
+                    <span className={`text-xs flex-1 ${isCancelled ? 'line-through text-gray-600' : 'text-gray-300'}`}>
+                      {isHome ? (homeTeam?.name ?? 'L') : (awayTeam?.name ?? 'V')}
+                      {playerName ? ` · ${playerName}` : ''}
+                      {' · '}
+                      {event.eventType === 'GOAL' ? '⚽' : event.eventType === 'YELLOW_CARD' ? '🟨' : event.eventType === 'RED_CARD' ? '🟥' : event.eventType}
+                    </span>
+                    {isInProgress && !isCancelled && (
+                      cancelConfirmId === event.id ? (
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            onClick={() => handleCancelEvent(event.id)}
+                            disabled={cancelInFlight}
+                            className="text-[10px] font-bold text-red-400 bg-red-950/50 border border-red-800/50 px-2 py-0.5 rounded disabled:opacity-50"
+                          >
+                            Sí
+                          </button>
+                          <button
+                            onClick={() => setCancelConfirmId(null)}
+                            className="text-[10px] text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded"
+                          >
+                            No
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setCancelConfirmId(event.id)}
+                          className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-gray-700 hover:text-red-400 hover:bg-red-950/30 transition-colors text-xs font-bold"
+                          title="Anular evento"
+                        >
+                          ✕
+                        </button>
+                      )
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
@@ -916,11 +972,54 @@ export default function VocaliaPage() {
           {/* Event log */}
           {eventLog.length > 0 && (
             <div className="w-full max-w-sm border-t border-gray-800/60 pt-4">
-              <EventLogGrid
-                events={eventLog}
-                homeTeamId={match.homeTeamId}
-                getPlayerName={getPlayerName}
-              />
+              <div className="flex flex-col gap-1.5">
+                {eventLog.map((event) => {
+                  const isCancelled = !!event.cancelledAt;
+                  const playerName = getPlayerName(event.playerId);
+                  const isHome = event.teamId === match.homeTeamId;
+                  return (
+                    <div
+                      key={event.id}
+                      className={`flex items-center gap-2 px-2 py-1 rounded-lg ${isCancelled ? 'opacity-40' : ''}`}
+                    >
+                      <span className="text-[10px] text-gray-600 tabular-nums w-8 shrink-0">{event.minute}'</span>
+                      <span className={`text-xs flex-1 ${isCancelled ? 'line-through text-gray-600' : 'text-gray-300'}`}>
+                        {isHome ? (homeTeam?.name ?? 'L') : (awayTeam?.name ?? 'V')}
+                        {playerName ? ` · ${playerName}` : ''}
+                        {' · '}
+                        {event.eventType === 'GOAL' ? '⚽' : event.eventType === 'YELLOW_CARD' ? '🟨' : event.eventType === 'RED_CARD' ? '🟥' : event.eventType}
+                      </span>
+                      {isInProgress && !isCancelled && (
+                        cancelConfirmId === event.id ? (
+                          <div className="flex gap-1 shrink-0">
+                            <button
+                              onClick={() => handleCancelEvent(event.id)}
+                              disabled={cancelInFlight}
+                              className="text-[10px] font-bold text-red-400 bg-red-950/50 border border-red-800/50 px-2 py-0.5 rounded disabled:opacity-50"
+                            >
+                              Sí
+                            </button>
+                            <button
+                              onClick={() => setCancelConfirmId(null)}
+                              className="text-[10px] text-gray-500 bg-gray-800 border border-gray-700 px-2 py-0.5 rounded"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setCancelConfirmId(event.id)}
+                            className="shrink-0 w-5 h-5 flex items-center justify-center rounded text-gray-700 hover:text-red-400 hover:bg-red-950/30 transition-colors text-xs font-bold"
+                            title="Anular evento"
+                          >
+                            ✕
+                          </button>
+                        )
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
 

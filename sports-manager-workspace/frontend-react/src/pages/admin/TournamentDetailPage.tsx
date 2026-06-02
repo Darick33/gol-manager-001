@@ -21,6 +21,7 @@ import { TeamLogo } from '../../components/ui/TeamLogo';
 import { TournamentConfigTab } from './TournamentConfigTab';
 import { PaymentModal } from '../../components/ui/PaymentModal';
 import type { Tournament, Team, Match, Player, MatchEvent, TeamBalance, LedgerEntry, TournamentRound } from '../../types';
+import { useAuthStore } from '../../store/auth.store';
 
 const SPORT_LABEL = { FOOTBALL: 'Fútbol', FUTSAL: 'Fútbol Sala' };
 const FORMAT_LABEL = {
@@ -1090,6 +1091,8 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
   roundClosed?: boolean;
 }) {
   const qc = useQueryClient();
+  const currentUser = useAuthStore((s) => s.user);
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'PLATFORM_ADMIN';
   const home = teamMap[match.homeTeamId];
   const away = teamMap[match.awayTeamId];
   const isLive = match.status === 'IN_PROGRESS';
@@ -1100,6 +1103,10 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [downloadingActa, setDownloadingActa] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [showEvents, setShowEvents] = useState(false);
+  const [cancelEventId, setCancelEventId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [cancelError, setCancelError] = useState<string | null>(null);
 
   const handleDownloadActa = async () => {
     setDownloadingActa(true);
@@ -1168,6 +1175,20 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'No se pudo guardar la fecha';
       setSaveError(Array.isArray(msg) ? msg[0] : msg);
       setTimeout(() => setSaveError(null), 3000);
+    },
+  });
+
+  const doCancelEvent = useMutation({
+    mutationFn: (eventId: string) => matchesApi.cancelEvent(match.id, eventId, cancelReason || 'Corrección admin'),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['match-events', match.id] });
+      setCancelEventId(null);
+      setCancelReason('');
+      setCancelError(null);
+    },
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'No se pudo anular el evento';
+      setCancelError(Array.isArray(msg) ? msg[0] : msg);
     },
   });
 
@@ -1378,12 +1399,83 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
           </div>
         </>
       ) : isDone ? (
-        <div style={{
-          borderTop: '1px solid rgba(255,255,255,0.04)',
-          padding: '8px 16px',
-          display: 'flex', justifyContent: 'center', gap: 8,
-          background: 'rgba(0,0,0,0.12)',
-        }}>
+        <>
+          {/* Events panel (FINISHED — admin can cancel events) */}
+          {isSuperAdmin && events.filter(e => e.eventType !== 'SUBSTITUTION').length > 0 && (
+            <div style={{ borderTop: '1px solid rgba(255,255,255,0.04)', padding: '0 16px' }}>
+              <button
+                onClick={() => setShowEvents((v) => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5, width: '100%',
+                  padding: '8px 0', background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#334155', fontSize: 11, fontWeight: 700, letterSpacing: '0.5px',
+                }}
+              >
+                {showEvents ? <ChevronUp size={11} /> : <ChevronDown size={11} />}
+                Eventos ({events.filter(e => e.eventType !== 'SUBSTITUTION' && !e.cancelledAt).length})
+              </button>
+              <AnimatePresence>
+                {showEvents && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    style={{ overflow: 'hidden', paddingBottom: 10 }}
+                  >
+                    {events
+                      .filter(e => e.eventType !== 'SUBSTITUTION')
+                      .sort((a, b) => a.minute - b.minute)
+                      .map((event) => {
+                        const isCancelled = !!event.cancelledAt;
+                        const name = getPlayerName(event.playerId);
+                        const teamName = event.teamId === match.homeTeamId ? home?.name : away?.name;
+                        return (
+                          <div
+                            key={event.id}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              padding: '5px 4px', borderRadius: 6,
+                              opacity: isCancelled ? 0.4 : 1,
+                            }}
+                          >
+                            <span style={{ fontSize: 10, color: '#475569', tabularNums: true, width: 28, flexShrink: 0 }}>{event.minute}'</span>
+                            <span style={{
+                              fontSize: 12, color: isCancelled ? '#475569' : '#cbd5e1',
+                              flex: 1, textDecoration: isCancelled ? 'line-through' : 'none',
+                            }}>
+                              {teamName} {name ? `· ${name}` : ''} ·{' '}
+                              {event.eventType === 'GOAL' ? '⚽' : event.eventType === 'YELLOW_CARD' ? '🟨' : '🟥'}
+                            </span>
+                            {!isCancelled && (
+                              <button
+                                onClick={() => { setCancelEventId(event.id); setCancelError(null); setCancelReason(''); }}
+                                style={{
+                                  fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 5, cursor: 'pointer',
+                                  background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.18)',
+                                  color: '#f87171',
+                                }}
+                              >
+                                Anular
+                              </button>
+                            )}
+                            {isCancelled && event.cancelReason && (
+                              <span style={{ fontSize: 9, color: '#334155' }} title={event.cancelReason}>anulado</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          <div style={{
+            borderTop: '1px solid rgba(255,255,255,0.04)',
+            padding: '8px 16px',
+            display: 'flex', justifyContent: 'center', gap: 8,
+            background: 'rgba(0,0,0,0.12)',
+          }}>
           <button
             onClick={handleDownloadActa}
             disabled={downloadingActa}
@@ -1409,10 +1501,51 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
                 color: '#a5b4fc', fontSize: 12, fontWeight: 700, cursor: 'pointer',
               }}
             >
-              💳 Registrar pago
+              Registrar pago
             </button>
           )}
-        </div>
+          </div>
+
+          {/* Cancel event confirmation modal */}
+          <AnimatePresence>
+            {cancelEventId && (
+              <Modal onClose={() => { setCancelEventId(null); setCancelError(null); setCancelReason(''); }}>
+                <h2 style={modalTitle}>Anular evento</h2>
+                <p style={{ fontSize: 13, color: '#475569', marginBottom: 16 }}>
+                  Esta acción reversa la multa asociada (si existe y no fue pagada). No se puede deshacer.
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Field label="Razón (obligatorio)">
+                    <input
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="Ej: Gol cargado al equipo equivocado"
+                      style={inputStyle}
+                      autoFocus
+                    />
+                  </Field>
+                  {cancelError && (
+                    <span style={{ fontSize: 12, color: '#f87171' }}>{cancelError}</span>
+                  )}
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                    <Button variant="outline" type="button" onClick={() => { setCancelEventId(null); setCancelError(null); setCancelReason(''); }}>
+                      Cancelar
+                    </Button>
+                    <Button
+                      type="button"
+                      disabled={!cancelReason.trim() || doCancelEvent.isPending}
+                      onClick={() => doCancelEvent.mutate(cancelEventId)}
+                    >
+                      {doCancelEvent.isPending
+                        ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                        : 'Confirmar anulación'}
+                    </Button>
+                  </div>
+                </div>
+              </Modal>
+            )}
+          </AnimatePresence>
+        </>
       ) : (
         <div style={{
           borderTop: '1px solid rgba(255,255,255,0.04)',

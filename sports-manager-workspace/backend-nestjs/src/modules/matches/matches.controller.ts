@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Patch, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Req, Res, UseGuards } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { SetColorsDto } from './dto/set-colors.dto';
 import { MatchEventsRepository } from './match-events.repository';
+import { MatchOrchestrationService } from './match-orchestration.service';
 import { MatchesRepository } from './matches.repository';
 import { MatchesService } from './matches.service';
 
@@ -13,6 +14,7 @@ export class MatchesController {
     private matchesRepository: MatchesRepository,
     private matchEventsRepository: MatchEventsRepository,
     private matchesService: MatchesService,
+    private orchestrationService: MatchOrchestrationService,
   ) {}
 
   @Get('tournament/:tournamentId')
@@ -59,5 +61,23 @@ export class MatchesController {
   setSchedule(@Param('id') id: string, @Body() body: { scheduledAt: string | null }) {
     const date = body.scheduledAt ? new Date(body.scheduledAt) : null;
     return this.matchesRepository.updateScheduledAt(id, date);
+  }
+
+  @Delete(':matchId/events/:eventId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN')
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  cancelEvent(
+    @Param('matchId') _matchId: string,
+    @Param('eventId') eventId: string,
+    @Body('reason') reason: string,
+    @Req() req: any,
+  ) {
+    return this.orchestrationService.cancelEvent(
+      eventId,
+      (req.user as { id: string }).id,
+      reason ?? 'Corrección admin',
+      'FINISHED',
+    );
   }
 }

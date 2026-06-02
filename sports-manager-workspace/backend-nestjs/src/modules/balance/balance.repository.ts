@@ -10,7 +10,7 @@ export interface LedgerEntryInput {
   matchId?: string | null;
   fineId?: string | null;
   paymentId?: string | null;
-  type: 'MATCH_CHARGE' | 'FINE_CHARGE' | 'PAYMENT_CREDIT' | 'ADJUSTMENT';
+  type: 'MATCH_CHARGE' | 'FINE_CHARGE' | 'PAYMENT_CREDIT' | 'ADJUSTMENT' | 'FINE_REVERSAL';
   amount: number; // negative = debit, positive = credit
   description: string;
 }

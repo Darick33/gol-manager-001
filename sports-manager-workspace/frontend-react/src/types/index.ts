@@ -99,6 +99,9 @@ export interface MatchEvent {
   eventType: EventType;
   minute: number;
   createdAt: string;
+  cancelledAt?: string | null;
+  cancelledById?: string | null;
+  cancelReason?: string | null;
 }
 
 export interface Fine {
@@ -128,7 +131,7 @@ export interface Payment {
   createdAt: string;
 }
 
-export type BalanceLedgerType = 'MATCH_CHARGE' | 'FINE_CHARGE' | 'PAYMENT_CREDIT' | 'ADJUSTMENT';
+export type BalanceLedgerType = 'MATCH_CHARGE' | 'FINE_CHARGE' | 'PAYMENT_CREDIT' | 'ADJUSTMENT' | 'FINE_REVERSAL';
 
 export interface TeamBalance {
   id: string;

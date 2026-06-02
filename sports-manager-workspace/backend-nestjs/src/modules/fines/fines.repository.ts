@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { alias } from 'drizzle-orm/pg-core';
 import { DRIZZLE } from '../../database/database.module';
@@ -74,5 +74,26 @@ export class FinesRepository {
         eq(schema.fines.matchId, matchId),
         eq(schema.fines.status, 'PENDING'),
       ));
+  }
+
+  async findByMatchEventId(matchEventId: string) {
+    const [fine] = await this.db
+      .select()
+      .from(schema.fines)
+      .where(eq(schema.fines.matchEventId, matchEventId))
+      .limit(1);
+    return fine ?? null;
+  }
+
+  async cancelByMatchEventId(matchEventId: string) {
+    return this.db
+      .update(schema.fines)
+      .set({ cancelledAt: new Date() })
+      .where(
+        and(
+          eq(schema.fines.matchEventId, matchEventId),
+          isNull(schema.fines.cancelledAt),
+        ),
+      );
   }
 }

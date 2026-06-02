@@ -57,6 +57,20 @@
       "when": 1748822460000,
       "tag": "0007_leagues_multitenancy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1748908800000,
+      "tag": "0008_event_correction",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1748908860000,
+      "tag": "0009_event_correction_columns",
+      "breakpoints": true
     }
   ]
 }

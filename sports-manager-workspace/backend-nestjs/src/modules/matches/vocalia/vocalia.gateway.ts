@@ -117,4 +117,27 @@ export class VocaliaGateway implements OnGatewayInit, OnGatewayConnection {
     const { closedMatch } = await this.orchestrationService.closeMatch(data.matchId);
     this.server.to(`match:${data.matchId}`).emit('match_closed', { match: closedMatch });
   }
+
+  @UseGuards(WsJwtGuard)
+  @SubscribeMessage('cancel_event')
+  async handleCancelEvent(
+    @MessageBody() data: { matchId: string; eventId: string; reason?: string },
+    @ConnectedSocket() client: Socket,
+  ) {
+    try {
+      const result = await this.orchestrationService.cancelEvent(
+        data.eventId,
+        (client.data as { user: { id: string } }).user.id,
+        data.reason ?? 'Corrección vocal',
+        'IN_PROGRESS',
+      );
+      this.server.to(`match:${data.matchId}`).emit('event_cancelled', {
+        eventId: result.cancelledEventId,
+        cascadedEventId: result.cascadedExpulsion?.cancelledEventId,
+        newScore: result.newScore,
+      });
+    } catch (err) {
+      client.emit('cancel_event_error', { message: (err as Error).message });
+    }
+  }
 }

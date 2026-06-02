@@ -146,6 +146,9 @@ export const matchEvents = pgTable(
     eventType: eventTypeEnum('event_type').notNull(),
     minute: integer('minute').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    cancelledAt: timestamp('cancelled_at'),
+    cancelledById: uuid('cancelled_by_id').references(() => users.id),
+    cancelReason: varchar('cancel_reason', { length: 100 }),
   },
   (t) => [
     index('match_events_match_id_idx').on(t.matchId),
@@ -168,6 +171,7 @@ export const fines = pgTable(
     half: integer('half').default(1).notNull(),
     status: fineStatusEnum('status').default('PENDING').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    cancelledAt: timestamp('cancelled_at'),
   },
   (t) => [
     index('fines_team_id_idx').on(t.teamId),
@@ -225,6 +229,7 @@ export const balanceLedgerTypeEnum = pgEnum('balance_ledger_type', [
   'FINE_CHARGE',
   'PAYMENT_CREDIT',
   'ADJUSTMENT',
+  'FINE_REVERSAL',
 ]);
 
 export const teamBalances = pgTable(
