@@ -3,6 +3,7 @@ import { and, eq } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { DRIZZLE } from '../../database/database.module';
 import * as schema from '../../database/schema';
+import { alias } from 'drizzle-orm/pg-core';
 
 type NewPayment = typeof schema.payments.$inferInsert;
 
@@ -54,6 +55,34 @@ export class PaymentsRepository {
   async findById(id: string) {
     const [payment] = await this.db.select().from(schema.payments).where(eq(schema.payments.id, id)).limit(1);
     return payment ?? null;
+  }
+
+  async findByTournament(tournamentId: string) {
+    const teamsAlias = alias(schema.teams, 'team');
+    const matchesAlias = alias(schema.matches, 'match');
+    return this.db
+      .select({
+        id: schema.payments.id,
+        fineId: schema.payments.fineId,
+        matchId: schema.payments.matchId,
+        teamId: schema.payments.teamId,
+        tournamentId: schema.payments.tournamentId,
+        method: schema.payments.method,
+        amount: schema.payments.amount,
+        receiptUrl: schema.payments.receiptUrl,
+        status: schema.payments.status,
+        reviewedBy: schema.payments.reviewedBy,
+        reviewedAt: schema.payments.reviewedAt,
+        createdAt: schema.payments.createdAt,
+        teamName: teamsAlias.name,
+        matchScheduledAt: matchesAlias.scheduledAt,
+        homeScore: matchesAlias.homeScore,
+        awayScore: matchesAlias.awayScore,
+      })
+      .from(schema.payments)
+      .leftJoin(teamsAlias, eq(schema.payments.teamId, teamsAlias.id))
+      .leftJoin(matchesAlias, eq(schema.payments.matchId, matchesAlias.id))
+      .where(eq(schema.payments.tournamentId, tournamentId));
   }
 
   async findByMatch(matchId: string) {

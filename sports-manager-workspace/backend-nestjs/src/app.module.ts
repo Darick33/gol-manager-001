@@ -21,6 +21,7 @@ import { UsersModule } from './modules/users/users.module';
 import { PublicModule } from './modules/public/public.module';
 import { LeaguesModule } from './modules/leagues/leagues.module';
 import { LeagueMiddleware } from './modules/leagues/league.middleware';
+import { ExportsModule } from './modules/exports/exports.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { LeagueMiddleware } from './modules/leagues/league.middleware';
     RoundsModule,
     PublicModule,
     LeaguesModule,
+    ExportsModule,
   ],
   controllers: [AppController],
   providers: [

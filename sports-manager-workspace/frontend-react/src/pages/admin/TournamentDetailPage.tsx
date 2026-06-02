@@ -6,8 +6,9 @@ import {
   ArrowLeft, Trophy, Users, Calendar, BarChart2, Plus,
   ChevronDown, ChevronUp, X, Loader2, Play, Swords, Shield,
   ExternalLink, FileDown, Settings, Pencil, Printer,
-  Lock, LockOpen,
+  Lock, LockOpen, Download,
 } from 'lucide-react';
+import { exportsApi } from '../../api/exports.api';
 import { tournamentsApi } from '../../api/tournaments.api';
 import { publicApi, type ScorerRow } from '../../api/public.api';
 import { teamsApi, playersApi } from '../../api/teams.api';
@@ -391,7 +392,7 @@ export default function TournamentDetailPage() {
             />
           )}
           {tab === 'standings' && (
-            <StandingsTab teams={teams} matches={matches} format={tournament.format} />
+            <StandingsTab teams={teams} matches={matches} format={tournament.format} tournamentId={id!} />
           )}
           {tab === 'scorers' && (
             <AdminScorersTab tournamentId={id!} />
@@ -1501,9 +1502,40 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
   );
 }
 
+// ─── Export Button ────────────────────────────────────────────────────────────
+
+function ExportButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: 5,
+        padding: '5px 11px', borderRadius: 8, cursor: 'pointer',
+        fontSize: 12, fontWeight: 600, color: '#94a3b8',
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(255,255,255,0.08)',
+        transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.background = 'rgba(16,185,129,0.1)';
+        (e.currentTarget as HTMLElement).style.color = '#10b981';
+        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(16,185,129,0.25)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)';
+        (e.currentTarget as HTMLElement).style.color = '#94a3b8';
+        (e.currentTarget as HTMLElement).style.borderColor = 'rgba(255,255,255,0.08)';
+      }}
+    >
+      <Download size={11} />
+      {label}
+    </button>
+  );
+}
+
 // ─── Standings Tab ────────────────────────────────────────────────────────────
 
-function StandingsTab({ teams, matches, format }: { teams: Team[]; matches: Match[]; format: string }) {
+function StandingsTab({ teams, matches, format, tournamentId }: { teams: Team[]; matches: Match[]; format: string; tournamentId: string }) {
   if (format !== 'ROUND_ROBIN') {
     return <EmptyState icon={BarChart2} text="La tabla de posiciones solo aplica al formato Round Robin." />;
   }
@@ -1518,10 +1550,15 @@ function StandingsTab({ teams, matches, format }: { teams: Team[]; matches: Matc
   const hcol: React.CSSProperties = { ...col, fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' };
 
   return (
-    <div style={{
-      borderRadius: 14, border: '1px solid rgba(255,255,255,0.07)',
-      background: 'rgba(255,255,255,0.02)', overflow: 'hidden',
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <ExportButton label="CSV" onClick={() => exportsApi.standings(tournamentId, 'csv')} />
+        <ExportButton label="Excel" onClick={() => exportsApi.standings(tournamentId, 'xlsx')} />
+      </div>
+      <div style={{
+        borderRadius: 14, border: '1px solid rgba(255,255,255,0.07)',
+        background: 'rgba(255,255,255,0.02)', overflow: 'hidden',
+      }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
@@ -1568,6 +1605,7 @@ function StandingsTab({ teams, matches, format }: { teams: Team[]; matches: Matc
         </tbody>
       </table>
     </div>
+    </div>
   );
 }
 
@@ -1599,7 +1637,12 @@ function AdminScorersTab({ tournamentId }: { tournamentId: string }) {
   );
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <ExportButton label="CSV" onClick={() => exportsApi.scorers(tournamentId, 'csv')} />
+        <ExportButton label="Excel" onClick={() => exportsApi.scorers(tournamentId, 'xlsx')} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {scorers.map((row: ScorerRow, i: number) => {
         const isTop = i === 0;
         const medalColor = i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#c2844a' : null;
@@ -1677,6 +1720,7 @@ function AdminScorersTab({ tournamentId }: { tournamentId: string }) {
           </motion.div>
         );
       })}
+      </div>
     </div>
   );
 }
@@ -1719,7 +1763,14 @@ function BalancesTab({ tournamentId, teams }: { tournamentId: string; teams: Tea
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+        <ExportButton label="Multas CSV" onClick={() => exportsApi.fines(tournamentId, 'csv')} />
+        <ExportButton label="Multas Excel" onClick={() => exportsApi.fines(tournamentId, 'xlsx')} />
+        <ExportButton label="Pagos CSV" onClick={() => exportsApi.payments(tournamentId, 'csv')} />
+        <ExportButton label="Pagos Excel" onClick={() => exportsApi.payments(tournamentId, 'xlsx')} />
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {rows.map(({ team, balance }) => (
         <div key={team.id} style={{
           borderRadius: 14,
@@ -1776,6 +1827,7 @@ function BalancesTab({ tournamentId, teams }: { tournamentId: string; teams: Tea
           </AnimatePresence>
         </div>
       ))}
+      </div>
     </div>
   );
 }

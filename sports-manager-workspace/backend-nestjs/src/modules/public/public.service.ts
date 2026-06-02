@@ -61,13 +61,10 @@ export class PublicService {
       });
   }
 
-  async getStandingsBySlug(slug: string) {
-    const tournament = await this.publicRepository.getTournamentBySlug(slug);
-    if (!tournament) return null;
-
+  private async computeStandingsForTournament(tournamentId: string) {
     const [teams, finishedMatches] = await Promise.all([
-      this.publicRepository.getTeamsByTournament(tournament.id),
-      this.publicRepository.getFinishedMatchesByTournament(tournament.id),
+      this.publicRepository.getTeamsByTournament(tournamentId),
+      this.publicRepository.getFinishedMatchesByTournament(tournamentId),
     ]);
 
     const stats = new Map<string, { w: number; d: number; l: number; gf: number; ga: number }>();
@@ -110,6 +107,16 @@ export class PublicService {
           b.goalDifference - a.goalDifference ||
           b.goalsFor - a.goalsFor,
       );
+  }
+
+  async getStandingsBySlug(slug: string) {
+    const tournament = await this.publicRepository.getTournamentBySlug(slug);
+    if (!tournament) return null;
+    return this.computeStandingsForTournament(tournament.id);
+  }
+
+  async getStandingsById(tournamentId: string) {
+    return this.computeStandingsForTournament(tournamentId);
   }
 
   async getScorersByTournamentId(tournamentId: string) {

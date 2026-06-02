@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { alias } from 'drizzle-orm/pg-core';
 import { DRIZZLE } from '../../database/database.module';
 import * as schema from '../../database/schema';
 
@@ -27,6 +28,27 @@ export class FinesRepository {
 
   async findByTournament(tournamentId: string) {
     return this.db.select().from(schema.fines).where(eq(schema.fines.tournamentId, tournamentId));
+  }
+
+  async findByTournamentWithTeamName(tournamentId: string) {
+    const teamsAlias = alias(schema.teams, 'team');
+    return this.db
+      .select({
+        id: schema.fines.id,
+        teamId: schema.fines.teamId,
+        tournamentId: schema.fines.tournamentId,
+        matchId: schema.fines.matchId,
+        matchEventId: schema.fines.matchEventId,
+        amount: schema.fines.amount,
+        reason: schema.fines.reason,
+        half: schema.fines.half,
+        status: schema.fines.status,
+        createdAt: schema.fines.createdAt,
+        teamName: teamsAlias.name,
+      })
+      .from(schema.fines)
+      .leftJoin(teamsAlias, eq(schema.fines.teamId, teamsAlias.id))
+      .where(eq(schema.fines.tournamentId, tournamentId));
   }
 
   async findById(id: string) {
