@@ -1252,13 +1252,7 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
             }}>
               {home?.name ?? '—'}
             </span>
-            <div style={{
-              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-              background: `${homeColor}20`, border: `2px solid ${homeColor}45`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Shield size={13} color={homeColor} />
-            </div>
+            <TeamLogo team={home} size={30} />
           </div>
           {(isLive || isDone) && (homeYellow > 0 || homeRed > 0) && (
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -1295,13 +1289,7 @@ function MatchCard({ match, teamMap, tournament, roundClosed = false }: {
         {/* Away */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 5 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-            <div style={{
-              width: 30, height: 30, borderRadius: 8, flexShrink: 0,
-              background: `${awayColor}20`, border: `2px solid ${awayColor}45`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Shield size={13} color={awayColor} />
-            </div>
+            <TeamLogo team={away} size={30} />
             <span style={{
               fontSize: 14, fontWeight: 700,
               color: isDone ? '#64748b' : '#f1f5f9',
