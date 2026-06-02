@@ -59,6 +59,8 @@ export default function VocaliaPage() {
   const [timer, setTimer] = useState({ seconds: 0, currentHalf: 1, running: false });
   const [homeTeam, setHomeTeam] = useState<Team | null>(null);
   const [awayTeam, setAwayTeam] = useState<Team | null>(null);
+  const [homeLogoError, setHomeLogoError] = useState(false);
+  const [awayLogoError, setAwayLogoError] = useState(false);
   const [homePlayers, setHomePlayers] = useState<Player[]>([]);
   const [awayPlayers, setAwayPlayers] = useState<Player[]>([]);
   const [halfDuration, setHalfDuration] = useState(20);
@@ -371,10 +373,12 @@ export default function VocaliaPage() {
           <div className="flex-1 flex flex-col gap-2 min-w-0">
             <div className="flex items-center gap-3">
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-black border-[3px] shrink-0"
+                className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-black border-[3px] shrink-0 overflow-hidden"
                 style={{ borderColor: homeColor, color: homeColor, backgroundColor: homeColor + '18' }}
               >
-                {homeTeam?.name?.[0]?.toUpperCase() ?? 'L'}
+                {homeTeam?.logoUrl && !homeLogoError
+                  ? <img src={homeTeam.logoUrl} alt={homeTeam.name} onError={() => setHomeLogoError(true)} className="w-full h-full object-cover" />
+                  : homeTeam?.name?.[0]?.toUpperCase() ?? 'L'}
               </div>
               <span className="text-6xl font-black tabular-nums leading-none" style={{ color: homeColor }}>
                 {match.homeScore}
@@ -409,10 +413,12 @@ export default function VocaliaPage() {
                 {match.awayScore}
               </span>
               <div
-                className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-black border-[3px] shrink-0"
+                className="w-12 h-12 rounded-full flex items-center justify-center text-xl font-black border-[3px] shrink-0 overflow-hidden"
                 style={{ borderColor: awayColor, color: awayColor, backgroundColor: awayColor + '18' }}
               >
-                {awayTeam?.name?.[0]?.toUpperCase() ?? 'V'}
+                {awayTeam?.logoUrl && !awayLogoError
+                  ? <img src={awayTeam.logoUrl} alt={awayTeam.name} onError={() => setAwayLogoError(true)} className="w-full h-full object-cover" />
+                  : awayTeam?.name?.[0]?.toUpperCase() ?? 'V'}
               </div>
             </div>
             <span className="text-sm font-semibold text-gray-200 text-right leading-tight truncate">{awayTeam?.name ?? 'Visitante'}</span>
@@ -675,9 +681,11 @@ export default function VocaliaPage() {
           <div className="w-full max-w-sm">
             <div className="flex items-center justify-between gap-4">
               <div className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black border-4 shadow-lg"
+                <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black border-4 shadow-lg overflow-hidden"
                   style={{ borderColor: homeColor, color: homeColor, backgroundColor: homeColor + '22' }}>
-                  {homeTeam?.name?.[0]?.toUpperCase() ?? 'L'}
+                  {homeTeam?.logoUrl && !homeLogoError
+                    ? <img src={homeTeam.logoUrl} alt={homeTeam.name} onError={() => setHomeLogoError(true)} className="w-full h-full object-cover" />
+                    : homeTeam?.name?.[0]?.toUpperCase() ?? 'L'}
                 </div>
                 <p className="text-xs font-semibold text-gray-300 text-center leading-tight">{homeTeam?.name ?? 'Local'}</p>
               </div>
@@ -689,9 +697,11 @@ export default function VocaliaPage() {
                 </div>
               </div>
               <div className="flex-1 flex flex-col items-center gap-2">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black border-4 shadow-lg"
+                <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl font-black border-4 shadow-lg overflow-hidden"
                   style={{ borderColor: awayColor, color: awayColor, backgroundColor: awayColor + '22' }}>
-                  {awayTeam?.name?.[0]?.toUpperCase() ?? 'V'}
+                  {awayTeam?.logoUrl && !awayLogoError
+                    ? <img src={awayTeam.logoUrl} alt={awayTeam.name} onError={() => setAwayLogoError(true)} className="w-full h-full object-cover" />
+                    : awayTeam?.name?.[0]?.toUpperCase() ?? 'V'}
                 </div>
                 <p className="text-xs font-semibold text-gray-300 text-center leading-tight">{awayTeam?.name ?? 'Visitante'}</p>
               </div>
