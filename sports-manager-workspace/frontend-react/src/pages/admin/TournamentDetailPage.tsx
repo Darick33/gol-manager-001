@@ -667,18 +667,7 @@ function TeamCard({ team, tournament, balance, onAddPlayer, onEditPlayer, onEdit
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 10,
-            background: team.primaryColor ? `${team.primaryColor}22` : 'rgba(255,255,255,0.05)',
-            border: `1px solid ${team.primaryColor ?? 'rgba(255,255,255,0.1)'}33`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            overflow: 'hidden', flexShrink: 0,
-          }}>
-            {team.logoUrl
-              ? <img src={team.logoUrl} alt={team.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : <Shield size={16} color={team.primaryColor ?? '#475569'} />
-            }
-          </div>
+          <TeamLogo team={team} size={36} />
           <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{team.name}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1785,16 +1774,7 @@ function BalancesTab({ tournamentId, teams }: { tournamentId: string; teams: Tea
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{
-                width: 34, height: 34, borderRadius: 10, flexShrink: 0,
-                background: team.primaryColor ? `${team.primaryColor}22` : 'rgba(255,255,255,0.05)',
-                border: `1px solid ${team.primaryColor ?? 'rgba(255,255,255,0.1)'}33`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
-              }}>
-                {team.logoUrl
-                  ? <img src={team.logoUrl} alt={team.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  : <Shield size={14} color={team.primaryColor ?? '#475569'} />}
-              </div>
+              <TeamLogo team={team} size={34} />
               <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>{team.name}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

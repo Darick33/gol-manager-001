@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -36,6 +36,26 @@ function formatDate(iso: string | null) {
 
 function isImageUrl(url: string) {
   return /\.(jpg|jpeg|png|webp|gif|avif)(\?|$)/i.test(url) || url.includes('cloudinary');
+}
+
+function TeamLogo({ team, size = 28 }: { team: Team; size?: number }) {
+  const [imgError, setImgError] = useState(false);
+  const primary = team.primaryColor ?? '#475569';
+  return team.logoUrl && !imgError ? (
+    <img src={team.logoUrl} alt={team.name} width={size} height={size}
+      onError={() => setImgError(true)}
+      style={{ borderRadius: size * 0.28, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }} />
+  ) : (
+    <div style={{
+      width: size, height: size, borderRadius: size * 0.28, flexShrink: 0,
+      background: `linear-gradient(135deg, ${primary}55, ${primary}22)`,
+      border: `1px solid ${primary}35`,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.33, fontWeight: 800, color: primary,
+    }}>
+      {team.name.slice(0, 2).toUpperCase()}
+    </div>
+  );
 }
 
 function paymentBadge(payments: Payment[], teamId: string) {
@@ -265,19 +285,7 @@ function TeamPaymentPanel({
       }}>
         {/* team header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-          {team.logoUrl ? (
-            <img src={team.logoUrl} alt={team.name} width={28} height={28}
-              style={{ borderRadius: 8, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }} />
-          ) : (
-            <div style={{
-              width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-              background: `${color}22`, border: `1px solid ${color}35`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 10, fontWeight: 800, color,
-            }}>
-              {team.name.slice(0, 2).toUpperCase()}
-            </div>
-          )}
+          <TeamLogo team={team} size={28} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {team.name}
@@ -750,12 +758,22 @@ function ClosedRoundSection({
 
 // ── CobrosTab ──────────────────────────────────────────────────────────────
 function CobrosTab() {
-  const [tournamentId, setTournamentId] = useState<string>('');
+  const [selectedId, setSelectedId] = useState<string>('');
+  const autoSelected = useRef(false);
 
   const { data: tournaments = [] } = useQuery({
     queryKey: ['tournaments'],
     queryFn: tournamentsApi.list,
   });
+
+  // auto-select active tournament on first load
+  useEffect(() => {
+    if (autoSelected.current || !tournaments.length) return;
+    const active = tournaments.find((t) => t.status === 'ACTIVE') ?? tournaments[0];
+    if (active) { setSelectedId(active.id); autoSelected.current = true; }
+  }, [tournaments]);
+
+  const tournamentId = selectedId;
 
   const { data: matches = [], isLoading: loadingMatches } = useQuery({
     queryKey: ['matches', 'tournament', tournamentId],
@@ -820,23 +838,37 @@ function CobrosTab() {
     return { openGroups: open, closedGroups: closed };
   }, [finished, rounds]);
 
-  const selectStyle: React.CSSProperties = {
-    height: 40, borderRadius: 10, padding: '0 12px',
-    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-    color: tournamentId ? '#e2e8f0' : '#475569', fontSize: 13, fontWeight: 500,
-    cursor: 'pointer', minWidth: 220,
-  };
-
   return (
     <div>
-      <div style={{ marginBottom: 20 }}>
-        <select value={tournamentId} onChange={(e) => setTournamentId(e.target.value)} style={selectStyle}>
-          <option value="">Seleccioná un torneo</option>
-          {tournaments.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-      </div>
+      {/* tournament tabs */}
+      {tournaments.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 20, scrollbarWidth: 'none' }}>
+          {tournaments.map((t) => {
+            const active = t.id === tournamentId;
+            return (
+              <button key={t.id} onClick={() => setSelectedId(t.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                padding: '0 16px', height: 44, borderRadius: 10, flexShrink: 0,
+                background: active ? 'rgba(99,102,241,0.1)' : 'rgba(255,255,255,0.03)',
+                border: active ? '1px solid rgba(99,102,241,0.28)' : '1px solid rgba(255,255,255,0.07)',
+                color: active ? '#818cf8' : '#64748b',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s ease',
+              }}>
+                <Trophy size={13} />
+                {t.name}
+                <span style={{
+                  fontSize: 10, padding: '2px 6px', borderRadius: 4, fontWeight: 700,
+                  background: t.status === 'ACTIVE' ? 'rgba(16,185,129,0.15)' : 'rgba(255,255,255,0.05)',
+                  color: t.status === 'ACTIVE' ? '#10b981' : '#475569',
+                }}>
+                  {t.status === 'ACTIVE' ? 'ACTIVO' : t.status === 'FINISHED' ? 'FIN' : 'DRAFT'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
 
       {!tournamentId ? (
         <div style={{
