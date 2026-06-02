@@ -16,6 +16,7 @@ import {
 import type { Match, MatchEvent, Team, Player, EventType, Tournament, Fine } from '../../types';
 import { apiClient } from '../../api/client';
 import { finesApi } from '../../api/fines.api';
+import { useAuthStore } from '../../store/auth.store';
 import { PaymentModal } from '../../components/ui/PaymentModal';
 
 type MobileTab = 'match' | 'fines' | 'controls';
@@ -48,6 +49,7 @@ function EventDot({ type }: { type: EventType }) {
 
 export default function VocaliaPage() {
   const { matchId } = useParams<{ matchId: string }>();
+  const token = useAuthStore((s) => s.token);
   const socketRef = useRef<Socket | null>(null);
 
   const [connected, setConnected] = useState(false);
@@ -119,7 +121,7 @@ export default function VocaliaPage() {
 
   useEffect(() => {
     if (!matchId) return;
-    const socket = io('/vocalia', { transports: ['websocket'] });
+    const socket = io('/vocalia', { transports: ['websocket'], auth: { token } });
     socketRef.current = socket;
 
     socket.on('connect', () => { setConnected(true); socket.emit('join_match', { matchId }); });
@@ -152,7 +154,7 @@ export default function VocaliaPage() {
       setTimeout(() => setExpulsionAlert(null), 6000);
     });
     return () => socket.disconnect();
-  }, [matchId, fetchTeams, fetchFines]);
+  }, [matchId, token, fetchTeams, fetchFines]);
 
   const startMatch = () => socketRef.current?.emit('start_match', { matchId, halfDurationMinutes: halfDuration });
   const startSecondHalf = () => {

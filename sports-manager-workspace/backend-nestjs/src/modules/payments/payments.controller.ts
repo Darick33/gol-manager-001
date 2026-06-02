@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -51,14 +52,14 @@ export class PaymentsController {
   @Patch(':id/approve')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN')
-  approve(@Param('id') id: string, @Body('adminId') adminId: string) {
-    return this.paymentsService.review(id, 'APPROVED', adminId);
+  approve(@Param('id') id: string, @Req() req: Request) {
+    return this.paymentsService.review(id, 'APPROVED', (req.user as any).id);
   }
 
   @Patch(':id/reject')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN')
-  reject(@Param('id') id: string, @Body('adminId') adminId: string) {
-    return this.paymentsService.review(id, 'REJECTED', adminId);
+  reject(@Param('id') id: string, @Req() req: Request) {
+    return this.paymentsService.review(id, 'REJECTED', (req.user as any).id);
   }
 }

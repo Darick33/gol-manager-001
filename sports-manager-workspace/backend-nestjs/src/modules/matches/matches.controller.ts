@@ -34,6 +34,8 @@ export class MatchesController {
   }
 
   @Get(':id/acta')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'VOCAL', 'DELEGATE')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async downloadActa(@Param('id') id: string, @Res() reply: any) {
     try {

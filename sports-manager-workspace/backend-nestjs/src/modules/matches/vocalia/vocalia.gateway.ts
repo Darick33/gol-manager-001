@@ -1,12 +1,15 @@
+import { UseGuards } from '@nestjs/common';
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayConnection,
   OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
+import { WsJwtGuard } from '../../auth/guards/ws-jwt.guard';
 import { BalanceService } from '../../balance/balance.service';
 import { FinesService } from '../../fines/fines.service';
 import { WhatsappService } from '../../notifications/whatsapp.service';
@@ -19,8 +22,11 @@ import { MatchEventsRepository } from '../match-events.repository';
 import { MatchesRepository } from '../matches.repository';
 import { MatchTimerService } from './match-timer.service';
 
-@WebSocketGateway({ cors: { origin: '*' }, namespace: 'vocalia' })
-export class VocaliaGateway implements OnGatewayInit {
+@WebSocketGateway({
+  cors: { origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true },
+  namespace: 'vocalia',
+})
+export class VocaliaGateway implements OnGatewayInit, OnGatewayConnection {
   @WebSocketServer()
   server: Server;
 
@@ -42,6 +48,17 @@ export class VocaliaGateway implements OnGatewayInit {
     this.timerService.setServer(server);
   }
 
+  handleConnection(client: Socket) {
+    const token = WsJwtGuard.extractTokenFromSocket(client);
+    if (!token) {
+      client.emit('error', { message: 'Unauthorized' });
+      client.disconnect(true);
+      return;
+    }
+    // Full JWT verification happens in WsJwtGuard on each protected message.
+    // Connection-level check ensures unauthenticated clients are dropped immediately.
+  }
+
   @SubscribeMessage('join_match')
   async handleJoin(@ConnectedSocket() client: Socket, @MessageBody() data: { matchId: string }) {
     await client.join(`match:${data.matchId}`);
@@ -50,6 +67,7 @@ export class VocaliaGateway implements OnGatewayInit {
     client.emit('match_state', { match, events });
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('set_colors')
   async handleSetColors(
     @MessageBody() data: { matchId: string; homeColor: string; awayColor: string },
@@ -61,6 +79,7 @@ export class VocaliaGateway implements OnGatewayInit {
     });
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('start_match')
   async handleStartMatch(@MessageBody() data: { matchId: string; halfDurationMinutes: number }) {
     await this.matchesRepository.updateStatus(data.matchId, 'IN_PROGRESS');
@@ -68,12 +87,14 @@ export class VocaliaGateway implements OnGatewayInit {
     this.server.to(`match:${data.matchId}`).emit('match_started', { matchId: data.matchId });
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('start_second_half')
   async handleSecondHalf(@MessageBody() data: { matchId: string; halfDurationMinutes: number }) {
     this.timerService.resume(data.matchId, data.halfDurationMinutes, 2);
     this.server.to(`match:${data.matchId}`).emit('second_half_started', { matchId: data.matchId });
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('register_event')
   async handleRegisterEvent(
     @MessageBody() data: {
@@ -124,6 +145,7 @@ export class VocaliaGateway implements OnGatewayInit {
     }
   }
 
+  @UseGuards(WsJwtGuard)
   @SubscribeMessage('close_match')
   async handleCloseMatch(@MessageBody() data: { matchId: string }) {
     this.timerService.stop(data.matchId);

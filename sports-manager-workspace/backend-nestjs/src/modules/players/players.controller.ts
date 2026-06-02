@@ -1,4 +1,5 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -12,8 +13,8 @@ export class PlayersController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN', 'DELEGATE')
-  create(@Body() dto: CreatePlayerDto) {
-    return this.playersService.create(dto);
+  create(@Body() dto: CreatePlayerDto, @Req() req: Request) {
+    return this.playersService.create(dto, req.user as any);
   }
 
   @Get('team/:teamId')
@@ -24,8 +25,8 @@ export class PlayersController {
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('SUPER_ADMIN', 'DELEGATE')
-  update(@Param('id') id: string, @Body() dto: Partial<CreatePlayerDto>) {
-    return this.playersService.update(id, dto);
+  update(@Param('id') id: string, @Body() dto: Partial<CreatePlayerDto>, @Req() req: Request) {
+    return this.playersService.update(id, dto, req.user as any);
   }
 
   @Delete(':id')
