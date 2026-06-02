@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import type { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -11,14 +12,19 @@ export class TournamentsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('SUPER_ADMIN')
-  create(@Body() dto: CreateTournamentDto) {
-    return this.tournamentsService.create(dto);
+  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN')
+  create(@Body() dto: CreateTournamentDto, @Req() req: Request) {
+    const user = (req as any).user;
+    const leagueId = user.leagueId as string;
+    return this.tournamentsService.create(dto, leagueId);
   }
 
   @Get()
-  findAll() {
-    return this.tournamentsService.findAll();
+  @UseGuards(JwtAuthGuard)
+  findAll(@Req() req: Request) {
+    const user = (req as any).user;
+    const leagueId = (user?.leagueId ?? null) as string | null;
+    return this.tournamentsService.findAll(leagueId);
   }
 
   @Get('id/:id')

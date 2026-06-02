@@ -8,6 +8,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  leagueId: string | null;
 }
 
 @Injectable()
@@ -26,6 +27,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = await this.usersRepository.findById(payload.sub);
     if (!user) throw new UnauthorizedException();
     const { passwordHash: _, ...safeUser } = user;
-    return safeUser;
+    // Grace window: tokens issued before multitenancy won't have leagueId.
+    // Fall back to the user's current leagueId from DB, then null.
+    const leagueId = payload.leagueId !== undefined
+      ? (payload.leagueId ?? null)
+      : (safeUser.leagueId ?? null);
+    return { ...safeUser, leagueId };
   }
 }

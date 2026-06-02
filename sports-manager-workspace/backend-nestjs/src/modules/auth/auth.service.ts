@@ -18,10 +18,11 @@ export class AuthService {
     const passwordMatch = await bcrypt.compare(dto.password, user.passwordHash);
     if (!passwordMatch) throw new UnauthorizedException('Credenciales inválidas');
 
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const leagueId = user.leagueId ?? null;
+    const payload = { sub: user.id, email: user.email, role: user.role, leagueId };
     return {
       access_token: this.jwtService.sign(payload),
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, leagueId },
     };
   }
 }

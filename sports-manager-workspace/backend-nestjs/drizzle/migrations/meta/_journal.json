@@ -43,6 +43,20 @@
       "when": 1780366669443,
       "tag": "0005_serious_sersi",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1748822400000,
+      "tag": "0006_platform_admin_enum",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1748822460000,
+      "tag": "0007_leagues_multitenancy",
+      "breakpoints": true
     }
   ]
 }

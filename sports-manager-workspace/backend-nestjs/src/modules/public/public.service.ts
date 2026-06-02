@@ -5,8 +5,8 @@ import { PublicRepository } from './public.repository';
 export class PublicService {
   constructor(private publicRepository: PublicRepository) {}
 
-  getActiveTournaments() {
-    return this.publicRepository.getActiveTournaments();
+  getActiveTournaments(leagueId: string) {
+    return this.publicRepository.getActiveTournaments(leagueId);
   }
 
   async getTournamentBySlug(slug: string) {
@@ -154,8 +154,8 @@ export class PublicService {
     return this.getScorersByTournamentId(tournament.id);
   }
 
-  async getLiveMatches() {
-    const liveMatches = await this.publicRepository.getLiveMatches();
+  async getLiveMatches(leagueId: string) {
+    const liveMatches = await this.publicRepository.getLiveMatches(leagueId);
     if (!liveMatches.length) return [];
 
     const teamIds = [

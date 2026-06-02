@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
@@ -19,6 +19,8 @@ import { TeamsModule } from './modules/teams/teams.module';
 import { TournamentsModule } from './modules/tournaments/tournaments.module';
 import { UsersModule } from './modules/users/users.module';
 import { PublicModule } from './modules/public/public.module';
+import { LeaguesModule } from './modules/leagues/leagues.module';
+import { LeagueMiddleware } from './modules/leagues/league.middleware';
 
 @Module({
   imports: [
@@ -41,6 +43,7 @@ import { PublicModule } from './modules/public/public.module';
     BalanceModule,
     RoundsModule,
     PublicModule,
+    LeaguesModule,
   ],
   controllers: [AppController],
   providers: [
@@ -48,4 +51,10 @@ import { PublicModule } from './modules/public/public.module';
     { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(LeagueMiddleware)
+      .forRoutes({ path: 'public/*path', method: RequestMethod.ALL });
+  }
+}

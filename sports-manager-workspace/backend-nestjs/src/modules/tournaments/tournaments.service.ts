@@ -14,14 +14,15 @@ export class TournamentsService {
     private matchesRepository: MatchesRepository,
   ) {}
 
-  async create(dto: CreateTournamentDto) {
+  async create(dto: CreateTournamentDto, leagueId: string) {
     const slug = dto.slug ?? generateSlug(dto.name);
-    const existing = await this.tournamentsRepository.findBySlug(slug);
+    const existing = await this.tournamentsRepository.findBySlug(slug, leagueId);
     if (existing) throw new BadRequestException(`El slug "${slug}" ya está en uso`);
 
     return this.tournamentsRepository.create({
       name: dto.name,
       slug,
+      leagueId,
       sportType: dto.sportType,
       format: dto.format,
       halfDurationMinutes: dto.halfDurationMinutes,
@@ -38,8 +39,9 @@ export class TournamentsService {
     });
   }
 
-  findAll() {
-    return this.tournamentsRepository.findAll();
+  findAll(leagueId: string | null) {
+    if (leagueId === null) return this.tournamentsRepository.findAllGlobal();
+    return this.tournamentsRepository.findAll(leagueId);
   }
 
   async findById(id: string) {

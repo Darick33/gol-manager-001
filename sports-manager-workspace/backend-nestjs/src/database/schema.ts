@@ -1,6 +1,22 @@
 import { pgTable, uuid, varchar, text, integer, doublePrecision, boolean, timestamp, pgEnum, uniqueIndex, index } from 'drizzle-orm/pg-core';
 
-export const userRoleEnum = pgEnum('user_role', ['SUPER_ADMIN', 'VOCAL', 'DELEGATE']);
+export const userRoleEnum = pgEnum('user_role', ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'VOCAL', 'DELEGATE']);
+
+export const leagueStatusEnum = pgEnum('league_status', ['ACTIVE', 'SUSPENDED']);
+
+export const leagues = pgTable(
+  'leagues',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    slug: varchar('slug', { length: 100 }).notNull(),
+    subdomain: varchar('subdomain', { length: 100 }),
+    logoUrl: text('logo_url'),
+    status: leagueStatusEnum('status').default('ACTIVE').notNull(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex('leagues_slug_unique_idx').on(t.slug)],
+);
 export const tournamentFormatEnum = pgEnum('tournament_format', ['ROUND_ROBIN', 'GROUPS_ELIMINATION', 'DIRECT_ELIMINATION']);
 export const sportTypeEnum = pgEnum('sport_type', ['FOOTBALL', 'FUTSAL']);
 export const tournamentStatusEnum = pgEnum('tournament_status', ['DRAFT', 'ACTIVE', 'FINISHED']);
@@ -10,36 +26,51 @@ export const fineStatusEnum = pgEnum('fine_status', ['PENDING', 'PAID']);
 export const paymentStatusEnum = pgEnum('payment_status', ['PENDING', 'APPROVED', 'REJECTED']);
 export const paymentMethodEnum = pgEnum('payment_method', ['CASH', 'TRANSFER']);
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: varchar('email', { length: 255 }).notNull().unique(),
-  passwordHash: varchar('password_hash', { length: 255 }).notNull(),
-  name: varchar('name', { length: 255 }).notNull(),
-  role: userRoleEnum('role').notNull(),
-  whatsappNumber: varchar('whatsapp_number', { length: 20 }),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    email: varchar('email', { length: 255 }).notNull().unique(),
+    passwordHash: varchar('password_hash', { length: 255 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    role: userRoleEnum('role').notNull(),
+    leagueId: uuid('league_id').references(() => leagues.id),
+    whatsappNumber: varchar('whatsapp_number', { length: 20 }),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('users_league_id_idx').on(t.leagueId),
+  ],
+);
 
-export const tournaments = pgTable('tournaments', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  name: varchar('name', { length: 255 }).notNull(),
-  slug: varchar('slug', { length: 255 }).notNull().unique(),
-  sportType: sportTypeEnum('sport_type').notNull(),
-  format: tournamentFormatEnum('format').notNull(),
-  halfDurationMinutes: integer('half_duration_minutes').notNull(),
-  maxRosterSize: integer('max_roster_size').notNull(),
-  category: varchar('category', { length: 100 }),
-  status: tournamentStatusEnum('status').default('DRAFT').notNull(),
-  yellowCardFine: doublePrecision('yellow_card_fine').default(2000).notNull(),
-  redCardFine: doublePrecision('red_card_fine').default(5000).notNull(),
-  lateFine: doublePrecision('late_fine').default(10000).notNull(),
-  courtFee: doublePrecision('court_fee').default(0).notNull(),
-  refereeFee: doublePrecision('referee_fee').default(0).notNull(),
-  refereeFeeEnabled: boolean('referee_fee_enabled').default(false).notNull(),
-  logoUrl: text('logo_url'),
-  logoBgRemovedUrl: text('logo_bg_removed_url'),
-  createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+export const tournaments = pgTable(
+  'tournaments',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    name: varchar('name', { length: 255 }).notNull(),
+    slug: varchar('slug', { length: 255 }).notNull(),
+    leagueId: uuid('league_id').notNull().references(() => leagues.id),
+    sportType: sportTypeEnum('sport_type').notNull(),
+    format: tournamentFormatEnum('format').notNull(),
+    halfDurationMinutes: integer('half_duration_minutes').notNull(),
+    maxRosterSize: integer('max_roster_size').notNull(),
+    category: varchar('category', { length: 100 }),
+    status: tournamentStatusEnum('status').default('DRAFT').notNull(),
+    yellowCardFine: doublePrecision('yellow_card_fine').default(2000).notNull(),
+    redCardFine: doublePrecision('red_card_fine').default(5000).notNull(),
+    lateFine: doublePrecision('late_fine').default(10000).notNull(),
+    courtFee: doublePrecision('court_fee').default(0).notNull(),
+    refereeFee: doublePrecision('referee_fee').default(0).notNull(),
+    refereeFeeEnabled: boolean('referee_fee_enabled').default(false).notNull(),
+    logoUrl: text('logo_url'),
+    logoBgRemovedUrl: text('logo_bg_removed_url'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex('tournaments_slug_league_idx').on(t.slug, t.leagueId),
+    index('tournaments_league_id_idx').on(t.leagueId),
+  ],
+);
 
 export const teams = pgTable(
   'teams',

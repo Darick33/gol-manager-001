@@ -1,18 +1,27 @@
-import { Controller, Get, NotFoundException, Param } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Req } from '@nestjs/common';
+import type { Request } from 'express';
 import { PublicService } from './public.service';
 
 @Controller('public')
 export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
+  private extractLeagueId(req: Request): string {
+    const league = (req as any).league;
+    if (!league?.id) throw new NotFoundException('Liga no especificada. Usá X-League-Subdomain o ?league=');
+    return league.id as string;
+  }
+
   @Get('live')
-  getLiveMatches() {
-    return this.publicService.getLiveMatches();
+  getLiveMatches(@Req() req: Request) {
+    const leagueId = this.extractLeagueId(req);
+    return this.publicService.getLiveMatches(leagueId);
   }
 
   @Get('tournaments')
-  getTournaments() {
-    return this.publicService.getActiveTournaments();
+  getTournaments(@Req() req: Request) {
+    const leagueId = this.extractLeagueId(req);
+    return this.publicService.getActiveTournaments(leagueId);
   }
 
   @Get('tournaments/:slug')

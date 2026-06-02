@@ -8,11 +8,16 @@ import * as schema from '../../database/schema';
 export class PublicRepository {
   constructor(@Inject(DRIZZLE) private db: PostgresJsDatabase<typeof schema>) {}
 
-  getActiveTournaments() {
+  getActiveTournaments(leagueId: string) {
     return this.db
       .select()
       .from(schema.tournaments)
-      .where(inArray(schema.tournaments.status, ['ACTIVE', 'FINISHED']));
+      .where(
+        and(
+          inArray(schema.tournaments.status, ['ACTIVE', 'FINISHED']),
+          eq(schema.tournaments.leagueId, leagueId),
+        ),
+      );
   }
 
   async getTournamentBySlug(slug: string) {
@@ -105,10 +110,34 @@ export class PublicRepository {
       .where(inArray(schema.teams.id, teamIds));
   }
 
-  getLiveMatches() {
+  getLiveMatches(leagueId: string) {
     return this.db
-      .select()
+      .select({
+        id: schema.matches.id,
+        tournamentId: schema.matches.tournamentId,
+        homeTeamId: schema.matches.homeTeamId,
+        awayTeamId: schema.matches.awayTeamId,
+        status: schema.matches.status,
+        scheduledAt: schema.matches.scheduledAt,
+        stage: schema.matches.stage,
+        phase: schema.matches.phase,
+        homeScore: schema.matches.homeScore,
+        awayScore: schema.matches.awayScore,
+        timerSeconds: schema.matches.timerSeconds,
+        timerRunning: schema.matches.timerRunning,
+        currentHalf: schema.matches.currentHalf,
+        actaPdfUrl: schema.matches.actaPdfUrl,
+        homeTeamColor: schema.matches.homeTeamColor,
+        awayTeamColor: schema.matches.awayTeamColor,
+        createdAt: schema.matches.createdAt,
+      })
       .from(schema.matches)
-      .where(eq(schema.matches.status, 'IN_PROGRESS'));
+      .innerJoin(schema.tournaments, eq(schema.matches.tournamentId, schema.tournaments.id))
+      .where(
+        and(
+          eq(schema.matches.status, 'IN_PROGRESS'),
+          eq(schema.tournaments.leagueId, leagueId),
+        ),
+      );
   }
 }

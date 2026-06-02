@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { DRIZZLE } from '../../database/database.module';
 import * as schema from '../../database/schema';
@@ -21,15 +21,25 @@ export class TournamentsRepository {
     return tournament;
   }
 
-  async findAll() {
+  async findAll(leagueId: string) {
+    return this.db
+      .select()
+      .from(schema.tournaments)
+      .where(eq(schema.tournaments.leagueId, leagueId));
+  }
+
+  async findAllGlobal() {
     return this.db.select().from(schema.tournaments);
   }
 
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string, leagueId?: string) {
+    const conditions = leagueId
+      ? and(eq(schema.tournaments.slug, slug), eq(schema.tournaments.leagueId, leagueId))
+      : eq(schema.tournaments.slug, slug);
     const [tournament] = await this.db
       .select()
       .from(schema.tournaments)
-      .where(eq(schema.tournaments.slug, slug))
+      .where(conditions)
       .limit(1);
     return tournament ?? null;
   }
