@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, isNull, or, between } from 'drizzle-orm';
+import { and, eq, isNull, or, between, inArray } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { DRIZZLE } from '../../database/database.module';
 import * as schema from '../../database/schema';
@@ -94,6 +94,31 @@ export class MatchEventsRepository {
       .where(eq(schema.matchEvents.id, eventId))
       .returning();
     return event;
+  }
+
+  async countYellowsByPlayerInTournament(playerId: string, tournamentId: string): Promise<number> {
+    // Find all match IDs for this tournament
+    const tournamentMatches = await this.db
+      .select({ id: schema.matches.id })
+      .from(schema.matches)
+      .where(eq(schema.matches.tournamentId, tournamentId));
+
+    if (tournamentMatches.length === 0) return 0;
+
+    const matchIds = tournamentMatches.map((m) => m.id);
+
+    const rows = await this.db
+      .select()
+      .from(schema.matchEvents)
+      .where(
+        and(
+          inArray(schema.matchEvents.matchId, matchIds),
+          eq(schema.matchEvents.playerId, playerId),
+          eq(schema.matchEvents.eventType, 'YELLOW_CARD'),
+          isNull(schema.matchEvents.cancelledAt),
+        ),
+      );
+    return rows.length;
   }
 
   async findLinkedRed(matchId: string, playerId: string, minute: number) {

@@ -50,6 +50,8 @@ export default function VocaliaPage() {
     halfEnded,
     matchClosed,
     expulsionAlert,
+    suspensionWarning,
+    suspendedPlayerIds,
     homeColor,
     awayColor,
     setHomeColor,
@@ -285,6 +287,30 @@ export default function VocaliaPage() {
             </div>
           </motion.div>
         )}
+      </AnimatePresence>
+
+      {/* Suspension warning toast */}
+      <AnimatePresence>
+        {suspensionWarning && (() => {
+          const allPlayers = [...homePlayers, ...awayPlayers];
+          const warnPlayer = allPlayers.find((p) => p.id === suspensionWarning.playerId);
+          return (
+            <motion.div
+              initial={{ opacity: 0, y: -60 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -60 }}
+              className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-yellow-950 border border-yellow-700 rounded-2xl px-5 py-3 shadow-2xl"
+            >
+              <span className="text-2xl">⚠️</span>
+              <div>
+                <p className="text-sm font-bold text-yellow-300">A 1 amarilla de la suspensión</p>
+                <p className="text-xs text-yellow-400">
+                  {warnPlayer ? `#${warnPlayer.dorsal} ${warnPlayer.name}` : 'Jugador'}
+                </p>
+              </div>
+            </motion.div>
+          );
+        })()}
       </AnimatePresence>
 
       {/* Header */}
@@ -1287,9 +1313,20 @@ export default function VocaliaPage() {
                       .map((p) => (
                         <option key={p.id} value={p.id}>
                           #{p.dorsal} {p.name}
+                          {suspendedPlayerIds.has(p.id) ? ' [SUSPENDIDO]' : ''}
                         </option>
                       ))}
                   </select>
+                  {selectedPlayerId && suspendedPlayerIds.has(selectedPlayerId) && (
+                    <p className="mt-1 text-xs font-semibold text-red-400">
+                      SUSPENDIDO — este jugador tiene una suspension pendiente.
+                    </p>
+                  )}
+                  {selectedPlayerId && suspensionWarning?.playerId === selectedPlayerId && (
+                    <p className="mt-1 text-xs font-semibold text-yellow-400">
+                      ⚠️ A 1 amarilla de la suspension
+                    </p>
+                  )}
                 </div>
                 {eventModal.type === 'SUBSTITUTION' && (
                   <div>

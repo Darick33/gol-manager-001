@@ -28,6 +28,9 @@ export interface League {
   createdAt: string;
 }
 
+export type SuspensionReason = 'YELLOW_ACCUMULATION' | 'RED_CARD_DIRECT';
+export type SuspensionStatus = 'PENDING' | 'SERVED' | 'CANCELLED';
+
 export interface Tournament {
   id: string;
   name: string;
@@ -46,7 +49,27 @@ export interface Tournament {
   category: string | null;
   logoUrl: string | null;
   logoBgRemovedUrl: string | null;
+  yellows_for_suspension: number;
+  redCardSuspensionMatches: number;
   createdAt: string;
+}
+
+export interface PlayerSuspension {
+  id: string;
+  playerId: string;
+  tournamentId: string;
+  triggeredByMatchId: string;
+  triggeredByEventId: string | null;
+  reason: SuspensionReason;
+  matchesSuspended: number;
+  matchesServed: number;
+  status: SuspensionStatus;
+  createdAt: string;
+  updatedAt: string;
+  playerName: string | null;
+  playerDorsal: number | null;
+  teamId: string | null;
+  teamName: string | null;
 }
 
 export interface Team {

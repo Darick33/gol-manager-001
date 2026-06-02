@@ -17,6 +17,10 @@ export interface VocaliaExpulsion {
   minute: number;
 }
 
+export interface SuspensionWarning {
+  playerId: string;
+}
+
 export interface VocaliaSocketState {
   connected: boolean;
   match: Match | null;
@@ -31,6 +35,8 @@ export interface VocaliaSocketState {
   halfEnded: boolean;
   matchClosed: boolean;
   expulsionAlert: VocaliaExpulsion | null;
+  suspensionWarning: SuspensionWarning | null;
+  suspendedPlayerIds: Set<string>;
   homeColor: string;
   awayColor: string;
   setHomeColor: (c: string) => void;
@@ -58,6 +64,8 @@ export function useVocaliaSocket(matchId: string | undefined, token: string | nu
   const [homeColor, setHomeColor] = useState('#3b82f6');
   const [awayColor, setAwayColor] = useState('#ef4444');
   const [expulsionAlert, setExpulsionAlert] = useState<VocaliaExpulsion | null>(null);
+  const [suspensionWarning, setSuspensionWarning] = useState<SuspensionWarning | null>(null);
+  const [suspendedPlayerIds, setSuspendedPlayerIds] = useState<Set<string>>(new Set());
 
   const fetchFines = useCallback(async () => {
     if (!matchId) return;
@@ -154,6 +162,13 @@ export function useVocaliaSocket(matchId: string | undefined, token: string | nu
       setExpulsionAlert({ playerId, teamId, minute });
       setTimeout(() => setExpulsionAlert(null), 6000);
     });
+    socket.on('suspension_warning', ({ playerId }: SuspensionWarning) => {
+      setSuspensionWarning({ playerId });
+      setTimeout(() => setSuspensionWarning(null), 8000);
+    });
+    socket.on('suspension_generated', ({ playerId }: { playerId: string }) => {
+      setSuspendedPlayerIds((prev) => new Set([...prev, playerId]));
+    });
 
     socket.on(
       'event_cancelled',
@@ -196,6 +211,8 @@ export function useVocaliaSocket(matchId: string | undefined, token: string | nu
     halfEnded,
     matchClosed,
     expulsionAlert,
+    suspensionWarning,
+    suspendedPlayerIds,
     homeColor,
     awayColor,
     setHomeColor,

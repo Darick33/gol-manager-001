@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Loader2, Settings, DollarSign, Trophy } from 'lucide-react';
+import { Loader2, Settings, DollarSign, Trophy, AlertTriangle } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { ImageUpload } from '../../components/ui/ImageUpload';
 import { useToast } from '../../components/ui/toast';
@@ -58,6 +58,8 @@ export function TournamentConfigTab({ tournament, onSave, isSaving }: Props) {
   const [courtFee, setCourtFee] = useState(String(tournament.courtFee));
   const [refereeFee, setRefereeFee] = useState(String(tournament.refereeFee));
   const [refereeFeeEnabled, setRefereeFeeEnabled] = useState(tournament.refereeFeeEnabled);
+  const [yellows_for_suspension, setYellowsForSuspension] = useState(String(tournament.yellows_for_suspension ?? 2));
+  const [redCardSuspensionMatches, setRedCardSuspensionMatches] = useState(String(tournament.redCardSuspensionMatches ?? 1));
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -72,6 +74,8 @@ export function TournamentConfigTab({ tournament, onSave, isSaving }: Props) {
         courtFee: parseFloat(courtFee) || 0,
         refereeFee: parseFloat(refereeFee) || 0,
         refereeFeeEnabled,
+        yellows_for_suspension: parseInt(yellows_for_suspension) || 2,
+        redCardSuspensionMatches: parseInt(redCardSuspensionMatches) || 1,
       });
       toast.success('Configuración guardada');
     } catch {
@@ -272,6 +276,52 @@ export function TournamentConfigTab({ tournament, onSave, isSaving }: Props) {
             />
           </ConfigField>
         )}
+      </div>
+
+      {/* Suspension config */}
+      <div style={{
+        borderRadius: 16,
+        border: '1px solid rgba(255,255,255,0.07)',
+        background: 'rgba(255,255,255,0.02)',
+        padding: '20px 24px',
+        marginBottom: 24,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <AlertTriangle size={15} color="#ef4444" />
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Suspensiones
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <ConfigField label="Amarillas para suspension" htmlFor="yellows_for_suspension">
+            <input
+              id="yellows_for_suspension"
+              type="number"
+              min="1"
+              max="10"
+              value={yellows_for_suspension}
+              onChange={(e) => setYellowsForSuspension(e.target.value)}
+              style={inputStyle}
+            />
+          </ConfigField>
+
+          <ConfigField label="Partidos por tarjeta roja" htmlFor="redCardSuspensionMatches">
+            <input
+              id="redCardSuspensionMatches"
+              type="number"
+              min="1"
+              max="10"
+              value={redCardSuspensionMatches}
+              onChange={(e) => setRedCardSuspensionMatches(e.target.value)}
+              style={inputStyle}
+            />
+          </ConfigField>
+        </div>
+        <p style={{ fontSize: 11, color: '#475569', margin: '12px 0 0' }}>
+          Con {yellows_for_suspension || 2} amarillas acumuladas en el torneo el jugador cumple 1 partido de suspension.
+          Una roja directa implica {redCardSuspensionMatches || 1} partido(s) de suspension.
+        </p>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>

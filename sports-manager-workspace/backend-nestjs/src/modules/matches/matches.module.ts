@@ -13,13 +13,15 @@ import { MatchOrchestrationService } from './match-orchestration.service';
 import { MatchesController } from './matches.controller';
 import { MatchesRepository } from './matches.repository';
 import { MatchesService } from './matches.service';
+import { SuspensionsRepository } from './suspensions.repository';
+import { SuspensionsService } from './suspensions.service';
 import { MatchTimerService } from './vocalia/match-timer.service';
 import { VocaliaGateway } from './vocalia/vocalia.gateway';
 
 @Module({
   imports: [AuthModule, TeamsModule, UsersModule, FinesModule, PdfModule, NotificationsModule, PaymentsModule, BalanceModule, forwardRef(() => TournamentsModule)],
-  providers: [MatchesRepository, MatchEventsRepository, MatchTimerService, VocaliaGateway, MatchOrchestrationService, MatchesService],
+  providers: [MatchesRepository, MatchEventsRepository, MatchTimerService, VocaliaGateway, MatchOrchestrationService, MatchesService, SuspensionsRepository, SuspensionsService],
   controllers: [MatchesController],
-  exports: [MatchesRepository, MatchEventsRepository],
+  exports: [MatchesRepository, MatchEventsRepository, SuspensionsService],
 })
 export class MatchesModule {}

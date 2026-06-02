@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { TenantGuard } from '../auth/guards/tenant.guard';
@@ -6,6 +6,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateTournamentDto } from './dto/create-tournament.dto';
 import { TournamentsService } from './tournaments.service';
+import { SuspensionsService } from '../matches/suspensions.service';
 
 interface AuthUser {
   id: string;
@@ -15,7 +16,10 @@ interface AuthUser {
 
 @Controller('tournaments')
 export class TournamentsController {
-  constructor(private tournamentsService: TournamentsService) {}
+  constructor(
+    private tournamentsService: TournamentsService,
+    private suspensionsService: SuspensionsService,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
@@ -52,5 +56,19 @@ export class TournamentsController {
   @Roles('SUPER_ADMIN')
   generateFixture(@Param('id') id: string) {
     return this.tournamentsService.generateFixture(id);
+  }
+
+  @Get(':id/suspensions')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN')
+  getSuspensions(@Param('id') id: string) {
+    return this.suspensionsService.findPendingByTournament(id);
+  }
+
+  @Delete(':id/suspensions/:suspensionId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN')
+  cancelSuspension(@Param('suspensionId') suspensionId: string) {
+    return this.suspensionsService.cancel(suspensionId);
   }
 }

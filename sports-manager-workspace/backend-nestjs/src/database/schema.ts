@@ -1,5 +1,8 @@
 import { pgTable, uuid, varchar, text, integer, doublePrecision, boolean, timestamp, pgEnum, uniqueIndex, index } from 'drizzle-orm/pg-core';
 
+export const suspensionReasonEnum = pgEnum('suspension_reason', ['YELLOW_ACCUMULATION', 'RED_CARD_DIRECT']);
+export const suspensionStatusEnum = pgEnum('suspension_status', ['PENDING', 'SERVED', 'CANCELLED']);
+
 export const userRoleEnum = pgEnum('user_role', ['PLATFORM_ADMIN', 'SUPER_ADMIN', 'VOCAL', 'DELEGATE']);
 
 export const leagueStatusEnum = pgEnum('league_status', ['ACTIVE', 'SUSPENDED']);
@@ -64,6 +67,8 @@ export const tournaments = pgTable(
     refereeFeeEnabled: boolean('referee_fee_enabled').default(false).notNull(),
     logoUrl: text('logo_url'),
     logoBgRemovedUrl: text('logo_bg_removed_url'),
+    yellows_for_suspension: integer('yellows_for_suspension').notNull().default(2),
+    redCardSuspensionMatches: integer('red_card_suspension_matches').notNull().default(1),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (t) => [
@@ -260,5 +265,26 @@ export const balanceLedger = pgTable(
   },
   (t) => [
     index('balance_ledger_team_tournament_idx').on(t.teamId, t.tournamentId),
+  ],
+);
+
+export const playerSuspensions = pgTable(
+  'player_suspensions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    playerId: uuid('player_id').notNull().references(() => players.id),
+    tournamentId: uuid('tournament_id').notNull().references(() => tournaments.id),
+    triggeredByMatchId: uuid('triggered_by_match_id').notNull().references(() => matches.id),
+    triggeredByEventId: uuid('triggered_by_event_id').references(() => matchEvents.id),
+    reason: suspensionReasonEnum('reason').notNull(),
+    matchesSuspended: integer('matches_suspended').notNull().default(1),
+    matchesServed: integer('matches_served').notNull().default(0),
+    status: suspensionStatusEnum('status').notNull().default('PENDING'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (t) => [
+    index('suspensions_player_tournament_idx').on(t.playerId, t.tournamentId),
+    index('suspensions_status_idx').on(t.status),
   ],
 );

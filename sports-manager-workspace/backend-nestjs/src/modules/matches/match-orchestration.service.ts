@@ -10,6 +10,7 @@ import { UsersRepository } from '../users/users.repository';
 import { BalanceService } from '../balance/balance.service';
 import { MatchEventsRepository } from './match-events.repository';
 import { MatchesRepository } from './matches.repository';
+import { SuspensionsService } from './suspensions.service';
 
 export interface RegisterEventInput {
   matchId: string;
@@ -31,6 +32,7 @@ export interface RegisterEventResult {
     teamId: string;
     minute: number;
   };
+  suspensionWarning?: { playerId: string };
 }
 
 export interface CancelEventResult {
@@ -54,9 +56,18 @@ export class MatchOrchestrationService {
     private whatsappService: WhatsappService,
     private paymentsRepository: PaymentsRepository,
     private balanceService: BalanceService,
+    private suspensionsService: SuspensionsService,
   ) {}
 
   async registerEvent(input: RegisterEventInput): Promise<RegisterEventResult> {
+    // Consume pending suspension when player generates first event in a new match
+    if (input.playerId) {
+      const match = await this.matchesRepository.findById(input.matchId);
+      if (match) {
+        await this.suspensionsService.consumeIfPending(input.playerId, match.tournamentId);
+      }
+    }
+
     const event = await this.matchEventsRepository.create(input);
     const result: RegisterEventResult = { event };
 
@@ -86,6 +97,24 @@ export class MatchOrchestrationService {
           teamId: input.teamId,
           minute: input.minute,
         };
+      }
+
+      // Check if player is near suspension threshold (no double-expulsion case)
+      if (!result.autoExpulsion) {
+        const match = await this.matchesRepository.findById(input.matchId);
+        if (match) {
+          const tournament = await this.tournamentsRepository.findById(match.tournamentId);
+          if (tournament) {
+            const nearSuspension = await this.suspensionsService.isNearSuspension(
+              input.playerId,
+              match.tournamentId,
+              tournament.yellows_for_suspension ?? 2,
+            );
+            if (nearSuspension) {
+              result.suspensionWarning = { playerId: input.playerId };
+            }
+          }
+        }
       }
     }
 
@@ -167,6 +196,9 @@ export class MatchOrchestrationService {
     );
     this.sendActaAndNotifications(matchId, match, closedMatch).catch((err) =>
       console.error('[closeMatch] PDF/WhatsApp falló (partido ya cerrado en DB):', err),
+    );
+    this.suspensionsService.generateForMatch(matchId).catch((err) =>
+      console.error('[closeMatch] Suspension generation failed:', err),
     );
 
     return { closedMatch };

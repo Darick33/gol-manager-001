@@ -6,7 +6,7 @@ import {
   ArrowLeft, Trophy, Users, Calendar, BarChart2, Plus,
   ChevronDown, ChevronUp, X, Loader2, Play, Swords, Shield,
   ExternalLink, FileDown, Settings, Pencil, Printer,
-  Lock, LockOpen, Download,
+  Lock, LockOpen, Download, AlertTriangle,
 } from 'lucide-react';
 import { exportsApi } from '../../api/exports.api';
 import { tournamentsApi } from '../../api/tournaments.api';
@@ -20,7 +20,7 @@ import { ImageUpload } from '../../components/ui/ImageUpload';
 import { TeamLogo } from '../../components/ui/TeamLogo';
 import { TournamentConfigTab } from './TournamentConfigTab';
 import { PaymentModal } from '../../components/ui/PaymentModal';
-import type { Tournament, Team, Match, Player, MatchEvent, TeamBalance, LedgerEntry, TournamentRound } from '../../types';
+import type { Tournament, Team, Match, Player, MatchEvent, TeamBalance, LedgerEntry, TournamentRound, PlayerSuspension } from '../../types';
 import { useAuthStore } from '../../store/auth.store';
 
 const SPORT_LABEL = { FOOTBALL: 'Fútbol', FUTSAL: 'Fútbol Sala' };
@@ -40,7 +40,7 @@ const MATCH_STATUS = {
   FINISHED:    { label: 'Finalizado', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)' },
 };
 
-type Tab = 'teams' | 'fixture' | 'standings' | 'scorers' | 'balances' | 'config';
+type Tab = 'teams' | 'fixture' | 'standings' | 'scorers' | 'balances' | 'config' | 'suspensions';
 
 function computeStandings(teams: Team[], matches: Match[]) {
   const stats: Record<string, { played: number; won: number; drawn: number; lost: number; gf: number; ga: number; pts: number }> = {};
@@ -67,6 +67,8 @@ export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const currentUser = useAuthStore((s) => s.user);
+  const isSuperAdmin = currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'PLATFORM_ADMIN';
   const [tab, setTab] = useState<Tab>('teams');
   const [showAddTeam, setShowAddTeam] = useState(false);
   const [teamName, setTeamName] = useState('');
@@ -234,12 +236,13 @@ export default function TournamentDetailPage() {
   const teamMap = Object.fromEntries(teams.map(t => [t.id, t]));
 
   const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
-    { key: 'teams',     label: 'Equipos',       icon: Users    },
-    { key: 'fixture',   label: 'Fixture',       icon: Calendar },
-    { key: 'standings', label: 'Posiciones',    icon: BarChart2 },
-    { key: 'scorers',   label: 'Goleadores',    icon: Swords   },
-    { key: 'balances',  label: 'Saldos',        icon: Trophy   },
-    { key: 'config',    label: 'Configuración', icon: Settings },
+    { key: 'teams',        label: 'Equipos',        icon: Users         },
+    { key: 'fixture',      label: 'Fixture',        icon: Calendar      },
+    { key: 'standings',    label: 'Posiciones',     icon: BarChart2     },
+    { key: 'scorers',      label: 'Goleadores',     icon: Swords        },
+    { key: 'balances',     label: 'Saldos',         icon: Trophy        },
+    { key: 'config',       label: 'Configuración',  icon: Settings      },
+    ...(isSuperAdmin ? [{ key: 'suspensions' as Tab, label: 'Suspensiones', icon: AlertTriangle }] : []),
   ];
 
   return (
@@ -404,6 +407,9 @@ export default function TournamentDetailPage() {
               onSave={(data) => updateConfig.mutateAsync(data)}
               isSaving={updateConfig.isPending}
             />
+          )}
+          {tab === 'suspensions' && isSuperAdmin && (
+            <SuspensionsTab tournamentId={id!} />
           )}
         </motion.div>
       </AnimatePresence>
@@ -2191,6 +2197,107 @@ function Field({ label, children, style }: { label: string; children: React.Reac
         {label}
       </label>
       {children}
+    </div>
+  );
+}
+
+// ─── Suspensions Tab ──────────────────────────────────────────────────────────
+
+function SuspensionsTab({ tournamentId }: { tournamentId: string }) {
+  const qc = useQueryClient();
+
+  const { data: suspensions = [], isLoading } = useQuery({
+    queryKey: ['suspensions', tournamentId],
+    queryFn: () => tournamentsApi.getSuspensions(tournamentId),
+    staleTime: 30_000,
+  });
+
+  const cancelSuspension = useMutation({
+    mutationFn: (suspensionId: string) =>
+      tournamentsApi.cancelSuspension(tournamentId, suspensionId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['suspensions', tournamentId] });
+    },
+  });
+
+  const reasonLabel: Record<string, string> = {
+    YELLOW_ACCUMULATION: 'Acumulacion de amarillas',
+    RED_CARD_DIRECT: 'Tarjeta roja directa',
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 40 }}>
+        <Loader2 size={20} color="#475569" style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  if (suspensions.length === 0) {
+    return (
+      <EmptyState icon={AlertTriangle} text="No hay suspensiones pendientes en este torneo." />
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 16 }}>
+        <p style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>
+          {suspensions.length} suspension{suspensions.length !== 1 ? 'es' : ''} pendiente{suspensions.length !== 1 ? 's' : ''}
+        </p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {(suspensions as PlayerSuspension[]).map((s) => (
+          <div
+            key={s.id}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              borderRadius: 12,
+              border: '1px solid rgba(239,68,68,0.2)',
+              background: 'rgba(239,68,68,0.05)',
+              padding: '12px 16px',
+              gap: 12,
+            }}
+          >
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9' }}>
+                  {s.playerName ?? 'Jugador desconocido'}
+                  {s.playerDorsal != null && (
+                    <span style={{ color: '#64748b', fontWeight: 400 }}> #{s.playerDorsal}</span>
+                  )}
+                </span>
+                <span style={{
+                  fontSize: 10, fontWeight: 700,
+                  color: '#ef4444', background: 'rgba(239,68,68,0.15)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  padding: '1px 7px', borderRadius: 100, textTransform: 'uppercase',
+                }}>
+                  SUSPENDIDO
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#64748b' }}>
+                {s.teamName && <span style={{ marginRight: 10 }}>{s.teamName}</span>}
+                <span>{reasonLabel[s.reason] ?? s.reason}</span>
+                {s.matchesSuspended > 1 && (
+                  <span style={{ marginLeft: 8 }}>· {s.matchesSuspended} partidos</span>
+                )}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => cancelSuspension.mutate(s.id)}
+              disabled={cancelSuspension.isPending}
+            >
+              {cancelSuspension.isPending ? (
+                <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+              ) : (
+                'Levantar'
+              )}
+            </Button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

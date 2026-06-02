@@ -108,6 +108,9 @@ export class VocaliaGateway implements OnGatewayInit, OnGatewayConnection {
         this.server.to(`match:${data.matchId}`).emit('fine_registered', { fine: result.autoExpulsion.fine });
       }
     }
+    if (result.suspensionWarning) {
+      this.server.to(`match:${data.matchId}`).emit('suspension_warning', result.suspensionWarning);
+    }
   }
 
   @UseGuards(WsJwtGuard)
