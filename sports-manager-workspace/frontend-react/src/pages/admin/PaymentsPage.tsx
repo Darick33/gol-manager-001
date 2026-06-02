@@ -13,6 +13,7 @@ import { teamsApi } from '../../api/teams.api';
 import { tournamentsApi } from '../../api/tournaments.api';
 import type { TournamentRound } from '../../types';
 import { ImageUpload } from '../../components/ui/ImageUpload';
+import { TeamLogo } from '../../components/ui/TeamLogo';
 import { useAuthStore } from '../../store/auth.store';
 import type { Fine, Match, Payment, Team, Tournament } from '../../types';
 
@@ -36,26 +37,6 @@ function formatDate(iso: string | null) {
 
 function isImageUrl(url: string) {
   return /\.(jpg|jpeg|png|webp|gif|avif)(\?|$)/i.test(url) || url.includes('cloudinary');
-}
-
-function TeamLogo({ team, size = 28 }: { team: Team; size?: number }) {
-  const [imgError, setImgError] = useState(false);
-  const primary = team.primaryColor ?? '#475569';
-  return team.logoUrl && !imgError ? (
-    <img src={team.logoUrl} alt={team.name} width={size} height={size}
-      onError={() => setImgError(true)}
-      style={{ borderRadius: size * 0.28, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }} />
-  ) : (
-    <div style={{
-      width: size, height: size, borderRadius: size * 0.28, flexShrink: 0,
-      background: `linear-gradient(135deg, ${primary}55, ${primary}22)`,
-      border: `1px solid ${primary}35`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.33, fontWeight: 800, color: primary,
-    }}>
-      {team.name.slice(0, 2).toUpperCase()}
-    </div>
-  );
 }
 
 function paymentBadge(payments: Payment[], teamId: string) {
@@ -487,25 +468,12 @@ function MatchPaymentCard({
 }
 
 function TeamChip({ team, right }: { team?: Team; right?: boolean }) {
-  const color = team?.primaryColor ?? '#475569';
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 6, minWidth: 0,
       flexDirection: right ? 'row-reverse' : 'row',
     }}>
-      {team?.logoUrl ? (
-        <img src={team.logoUrl} alt={team.name} width={22} height={22}
-          style={{ borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
-      ) : (
-        <div style={{
-          width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-          background: `${color}22`, border: `1px solid ${color}35`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 8, fontWeight: 800, color,
-        }}>
-          {team?.name.slice(0, 2).toUpperCase() ?? '?'}
-        </div>
-      )}
+      <TeamLogo team={team} size={22} />
       <span style={{
         fontSize: 12, fontWeight: 700, color: '#cbd5e1',
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80,
@@ -999,8 +967,6 @@ function PaymentCard({ payment, team, index, adminId }: {
   });
 
   const loading = approveMutation.isPending || rejectMutation.isPending;
-  const primary = team?.primaryColor ?? '#475569';
-  const initials = team?.name.slice(0, 2).toUpperCase() ?? '??';
   const isImg = isImageUrl(payment.receiptUrl ?? '');
 
   return (
@@ -1012,18 +978,7 @@ function PaymentCard({ payment, team, index, adminId }: {
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-          {team?.logoUrl ? (
-            <img src={team.logoUrl} alt={team.name} width={36} height={36}
-              style={{ borderRadius: 10, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255,255,255,0.08)' }} />
-          ) : (
-            <div style={{
-              width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-              background: `linear-gradient(135deg, ${primary}55, ${primary}22)`,
-              border: `1px solid ${primary}35`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 12, fontWeight: 800, color: primary,
-            }}>{initials}</div>
-          )}
+          <TeamLogo team={team} size={36} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {team?.name ?? 'Equipo desconocido'}

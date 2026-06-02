@@ -16,6 +16,7 @@ import { balanceApi } from '../../api/balance.api';
 import { roundsApi } from '../../api/rounds.api';
 import { Button } from '../../components/ui/button';
 import { ImageUpload } from '../../components/ui/ImageUpload';
+import { TeamLogo } from '../../components/ui/TeamLogo';
 import { TournamentConfigTab } from './TournamentConfigTab';
 import { PaymentModal } from '../../components/ui/PaymentModal';
 import type { Tournament, Team, Match, Player, MatchEvent, TeamBalance, LedgerEntry, TournamentRound } from '../../types';
@@ -38,29 +39,6 @@ const MATCH_STATUS = {
 };
 
 type Tab = 'teams' | 'fixture' | 'standings' | 'scorers' | 'balances' | 'config';
-
-function TeamLogo({ team, size = 24 }: { team: Team | undefined; size?: number }) {
-  const [imgError, setImgError] = useState(false);
-  if (!team) return null;
-  const primary = team.primaryColor ?? '#475569';
-  return team.logoUrl && !imgError ? (
-    <img
-      src={team.logoUrl} alt={team.name}
-      onError={() => setImgError(true)}
-      style={{ width: size, height: size, borderRadius: size * 0.28, objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255,255,255,0.08)' }}
-    />
-  ) : (
-    <div style={{
-      width: size, height: size, borderRadius: size * 0.28, flexShrink: 0,
-      background: `linear-gradient(135deg, ${primary}55, ${primary}22)`,
-      border: `1px solid ${primary}35`,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontSize: size * 0.33, fontWeight: 800, color: primary,
-    }}>
-      {team.name.slice(0, 2).toUpperCase()}
-    </div>
-  );
-}
 
 function computeStandings(teams: Team[], matches: Match[]) {
   const stats: Record<string, { played: number; won: number; drawn: number; lost: number; gf: number; ga: number; pts: number }> = {};
