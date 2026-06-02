@@ -19,6 +19,16 @@ export const useAuthStore = create<AuthState>()(
       logout: () => set({ user: null, token: null }),
       isAuthenticated: () => !!get().token,
     }),
-    { name: 'auth-storage' },
+    {
+      name: 'auth-storage',
+      // Migration guard: if token exists but user.leagueId is undefined
+      // (old token pre-multitenancy), force logout to avoid stale state.
+      onRehydrateStorage: () => (state) => {
+        if (state?.token && state.user && state.user.leagueId === undefined) {
+          state.user = null;
+          state.token = null;
+        }
+      },
+    },
   ),
 );

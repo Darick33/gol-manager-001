@@ -9,17 +9,21 @@ import {
   Radio,
   LogOut,
   X,
-  Trophy as Logo,
+  Globe,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 
-const NAV = [
+const NAV_DEFAULT = [
   { to: '/admin',             icon: LayoutDashboard, label: 'Dashboard', end: true },
   { to: '/admin/tournaments', icon: Trophy,          label: 'Torneos'            },
   { to: '/admin/teams',       icon: Users,           label: 'Equipos'            },
   { to: '/admin/fines',       icon: AlertTriangle,   label: 'Multas'             },
   { to: '/admin/payments',    icon: CreditCard,      label: 'Pagos'              },
   { to: '/admin/matches',     icon: Radio,           label: 'Partidos'           },
+];
+
+const NAV_PLATFORM_ADMIN = [
+  { to: '/admin/leagues', icon: Globe, label: 'Ligas', end: false },
 ];
 
 interface SidebarProps {
@@ -31,6 +35,8 @@ interface SidebarProps {
 export default function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
+  const NAV = isPlatformAdmin ? NAV_PLATFORM_ADMIN : NAV_DEFAULT;
 
   const handleLogout = () => {
     logout();
@@ -147,7 +153,10 @@ export default function Sidebar({ isMobile = false, isOpen = true, onClose }: Si
             {user?.name ?? 'Usuario'}
           </div>
           <div style={{ fontSize: 11, color: '#475569' }}>
-            {user?.role === 'SUPER_ADMIN' ? 'Administrador' : user?.role === 'VOCAL' ? 'Vocal' : 'Delegado'}
+            {user?.role === 'PLATFORM_ADMIN' ? 'Platform Admin'
+              : user?.role === 'SUPER_ADMIN' ? 'Administrador'
+              : user?.role === 'VOCAL' ? 'Vocal'
+              : 'Delegado'}
           </div>
         </div>
 

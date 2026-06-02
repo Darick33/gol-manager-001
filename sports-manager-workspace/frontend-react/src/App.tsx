@@ -1,3 +1,4 @@
+import { createContext, useContext, useMemo } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
@@ -11,47 +12,106 @@ import MatchesPage from './pages/admin/MatchesPage';
 import TeamsPage from './pages/admin/TeamsPage';
 import FinesPage from './pages/admin/FinesPage';
 import PaymentsPage from './pages/admin/PaymentsPage';
+import LeaguesPage from './pages/admin/LeaguesPage';
+import CreateLeaguePage from './pages/admin/CreateLeaguePage';
 import PublicPortalPage from './pages/public/PublicPortalPage';
 import PublicTournamentPage from './pages/public/PublicTournamentPage';
+import PublicTeamPage from './pages/public/PublicTeamPage';
+import PublicPlayerPage from './pages/public/PublicPlayerPage';
+import { useAuthStore } from './store/auth.store';
 
+// ---- League context -------------------------------------------------------
+// Detects the current league slug from subdomain or ?league= query param.
+// The context does NOT fetch from the API — subdomain resolution is server-side.
+
+interface LeagueContextValue {
+  slug: string | null;
+}
+
+const LeagueContext = createContext<LeagueContextValue>({ slug: null });
+
+function detectSlug(): string | null {
+  const hostname = window.location.hostname;
+  const parts = hostname.split('.');
+  if (parts.length > 2) return parts[0];
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('league');
+  }
+  return null;
+}
+
+export function useLeague(): LeagueContextValue {
+  return useContext(LeagueContext);
+}
+
+// ---- PLATFORM_ADMIN guard -------------------------------------------------
+function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== 'PLATFORM_ADMIN') return <Navigate to="/admin" replace />;
+  return <>{children}</>;
+}
+
+// ---- App ------------------------------------------------------------------
 export default function App() {
+  const slug = useMemo(() => detectSlug(), []);
+
   return (
-    <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={<LoginPage />} />
+    <LeagueContext.Provider value={{ slug }}>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
 
-      {/* Public portal — no auth required */}
-      <Route path="/portal" element={<PublicPortalPage />} />
-      <Route path="/portal/:slug" element={<PublicTournamentPage />} />
+        {/* Public portal — no auth required */}
+        <Route path="/portal" element={<PublicPortalPage />} />
+        <Route path="/portal/:slug" element={<PublicTournamentPage />} />
+        <Route path="/portal/:slug/equipos/:teamId" element={<PublicTeamPage />} />
+        <Route path="/portal/:slug/equipos/:teamId/jugadores/:playerId" element={<PublicPlayerPage />} />
 
-      {/* Standalone vocalia panel — opens in new window, no AdminLayout */}
-      <Route
-        path="/admin/vocalia/:matchId"
-        element={
-          <ProtectedRoute>
-            <VocaliaPage />
-          </ProtectedRoute>
-        }
-      />
+        {/* Standalone vocalia panel — opens in new window, no AdminLayout */}
+        <Route
+          path="/admin/vocalia/:matchId"
+          element={
+            <ProtectedRoute>
+              <VocaliaPage />
+            </ProtectedRoute>
+          }
+        />
 
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute>
-            <AdminLayout />
-          </ProtectedRoute>
-        }
-      >
-        <Route index element={<DashboardPage />} />
-        <Route path="tournaments" element={<TournamentsPage />} />
-        <Route path="tournaments/:id" element={<TournamentDetailPage />} />
-        <Route path="matches" element={<MatchesPage />} />
-        <Route path="teams" element={<TeamsPage />} />
-        <Route path="fines" element={<FinesPage />} />
-        <Route path="payments" element={<PaymentsPage />} />
-      </Route>
+        {/* PLATFORM_ADMIN routes — outside AdminLayout, own guard */}
+        <Route
+          path="/admin/leagues"
+          element={
+            <PlatformAdminRoute>
+              <AdminLayout />
+            </PlatformAdminRoute>
+          }
+        >
+          <Route index element={<LeaguesPage />} />
+          <Route path="new" element={<CreateLeaguePage />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardPage />} />
+          <Route path="tournaments" element={<TournamentsPage />} />
+          <Route path="tournaments/:id" element={<TournamentDetailPage />} />
+          <Route path="matches" element={<MatchesPage />} />
+          <Route path="teams" element={<TeamsPage />} />
+          <Route path="fines" element={<FinesPage />} />
+          <Route path="payments" element={<PaymentsPage />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </LeagueContext.Provider>
   );
 }

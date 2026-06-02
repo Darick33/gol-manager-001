@@ -1,4 +1,4 @@
-export type UserRole = 'SUPER_ADMIN' | 'VOCAL' | 'DELEGATE';
+export type UserRole = 'PLATFORM_ADMIN' | 'SUPER_ADMIN' | 'VOCAL' | 'DELEGATE';
 export type SportType = 'FOOTBALL' | 'FUTSAL';
 export type TournamentFormat = 'ROUND_ROBIN' | 'DIRECT_ELIMINATION' | 'GROUPS_ELIMINATION';
 export type TournamentStatus = 'DRAFT' | 'ACTIVE' | 'FINISHED';
@@ -13,7 +13,18 @@ export interface User {
   email: string;
   name: string;
   role: UserRole;
+  leagueId: string | null;
   whatsappNumber: string | null;
+  createdAt: string;
+}
+
+export interface League {
+  id: string;
+  name: string;
+  slug: string;
+  subdomain: string | null;
+  logoUrl: string | null;
+  status: 'ACTIVE' | 'SUSPENDED';
   createdAt: string;
 }
 
@@ -161,6 +172,7 @@ export interface TournamentRound {
 export interface AuthResponse {
   access_token: string;
   user: User;
+  leagueId: string | null;
 }
 
 export interface ApiError {

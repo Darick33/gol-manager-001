@@ -5,6 +5,26 @@ export const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+// Detect current league slug from subdomain or query param
+function detectLeagueSlug(): string | null {
+  const hostname = window.location.hostname;
+  const parts = hostname.split('.');
+
+  // Subdomain format: {slug}.domain.com (3+ parts)
+  if (parts.length > 2) {
+    return parts[0];
+  }
+
+  // Localhost dev: ?league=slug
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    const params = new URLSearchParams(window.location.search);
+    const league = params.get('league');
+    if (league) return league;
+  }
+
+  return null;
+}
+
 // Attach JWT on every request
 apiClient.interceptors.request.use((config) => {
   const raw = localStorage.getItem('auth-storage');
@@ -18,6 +38,13 @@ apiClient.interceptors.request.use((config) => {
       // malformed storage — ignore
     }
   }
+
+  // Inject league subdomain header if in a league context
+  const slug = detectLeagueSlug();
+  if (slug) {
+    config.headers['X-League-Subdomain'] = slug;
+  }
+
   return config;
 });
 
