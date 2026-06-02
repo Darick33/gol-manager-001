@@ -172,7 +172,6 @@ export interface TournamentRound {
 export interface AuthResponse {
   access_token: string;
   user: User;
-  leagueId: string | null;
 }
 
 export interface ApiError {

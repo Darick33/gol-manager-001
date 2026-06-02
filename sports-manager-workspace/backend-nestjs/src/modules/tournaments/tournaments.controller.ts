@@ -1,30 +1,33 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import type { Request } from 'express';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { TenantGuard } from '../auth/guards/tenant.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateTournamentDto } from './dto/create-tournament.dto';
 import { TournamentsService } from './tournaments.service';
+
+interface AuthUser {
+  id: string;
+  role: string;
+  leagueId: string | null;
+}
 
 @Controller('tournaments')
 export class TournamentsController {
   constructor(private tournamentsService: TournamentsService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, TenantGuard)
   @Roles('SUPER_ADMIN', 'PLATFORM_ADMIN')
-  create(@Body() dto: CreateTournamentDto, @Req() req: Request) {
-    const user = (req as any).user;
-    const leagueId = user.leagueId as string;
-    return this.tournamentsService.create(dto, leagueId);
+  create(@Body() dto: CreateTournamentDto, @CurrentUser() user: AuthUser) {
+    return this.tournamentsService.create(dto, user.leagueId as string);
   }
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll(@Req() req: Request) {
-    const user = (req as any).user;
-    const leagueId = (user?.leagueId ?? null) as string | null;
-    return this.tournamentsService.findAll(leagueId);
+  findAll(@CurrentUser() user: AuthUser) {
+    return this.tournamentsService.findAll(user?.leagueId ?? null);
   }
 
   @Get('id/:id')
