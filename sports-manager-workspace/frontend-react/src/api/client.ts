@@ -8,19 +8,20 @@ export const apiClient = axios.create({
 // Detect current league slug from subdomain or query param
 function detectLeagueSlug(): string | null {
   const hostname = window.location.hostname;
-  const parts = hostname.split('.');
-
-  // Subdomain format: {slug}.domain.com (3+ parts)
-  if (parts.length > 2) {
-    return parts[0];
-  }
 
   // Localhost dev: ?league=slug
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     const params = new URLSearchParams(window.location.search);
-    const league = params.get('league');
-    if (league) return league;
+    return params.get('league');
   }
+
+  // Production: subdomain detection relative to base domain
+  // VITE_BASE_DOMAIN = golmanager.qzz.io (3 parts)
+  // league subdomain = piloto.golmanager.qzz.io (4 parts)
+  const baseDomain = import.meta.env.VITE_BASE_DOMAIN as string | undefined;
+  const baseParts = baseDomain ? baseDomain.split('.').length : 2;
+  const parts = hostname.split('.');
+  if (parts.length > baseParts) return parts[0];
 
   return null;
 }

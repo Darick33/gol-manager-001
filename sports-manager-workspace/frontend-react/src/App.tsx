@@ -32,12 +32,14 @@ const LeagueContext = createContext<LeagueContextValue>({ slug: null });
 
 function detectSlug(): string | null {
   const hostname = window.location.hostname;
-  const parts = hostname.split('.');
-  if (parts.length > 2) return parts[0];
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     const params = new URLSearchParams(window.location.search);
     return params.get('league');
   }
+  const baseDomain = import.meta.env.VITE_BASE_DOMAIN as string | undefined;
+  const baseParts = baseDomain ? baseDomain.split('.').length : 2;
+  const parts = hostname.split('.');
+  if (parts.length > baseParts) return parts[0];
   return null;
 }
 

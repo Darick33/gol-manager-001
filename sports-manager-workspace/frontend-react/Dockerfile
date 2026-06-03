@@ -1,5 +1,7 @@
 FROM node:22-alpine AS builder
 WORKDIR /app
+ARG VITE_BASE_DOMAIN=golmanager.qzz.io
+ENV VITE_BASE_DOMAIN=$VITE_BASE_DOMAIN
 COPY package*.json ./
 RUN npm ci
 COPY . .
