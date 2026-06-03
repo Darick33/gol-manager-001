@@ -73,8 +73,8 @@ jobs:
             cd /opt/golmanager/gol-manager-001
             git pull origin main
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            docker compose -f sports-manager-workspace/infrastructure/docker-compose.prod.yml pull
-            docker compose -f sports-manager-workspace/infrastructure/docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f sports-manager-workspace/infrastructure/docker-compose.prod.yml --env-file .env pull
+            docker compose -f sports-manager-workspace/infrastructure/docker-compose.prod.yml --env-file .env up -d --remove-orphans
             docker image prune -f
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
