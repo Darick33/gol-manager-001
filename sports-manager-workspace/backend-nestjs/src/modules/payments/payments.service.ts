@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { BalanceService } from '../balance/balance.service';
 import { FinesRepository } from '../fines/fines.repository';
 import { WhatsappService } from '../notifications/whatsapp.service';
@@ -17,10 +17,15 @@ export class PaymentsService {
   async uploadReceipt(fineId: string, teamId: string, receiptUrl: string) {
     const fine = await this.finesRepository.findById(fineId);
     if (!fine) throw new NotFoundException('Multa no encontrada');
+    if (fine.status === 'PAID') throw new BadRequestException('La multa ya está pagada');
     return this.paymentsRepository.create({ fineId, teamId, receiptUrl, method: 'TRANSFER', amount: fine.amount });
   }
 
   async registerMatchPayment(dto: CreateMatchPaymentDto) {
+    const existing = await this.paymentsRepository.findByMatch(dto.matchId);
+    const alreadyPaid = existing.some(p => p.teamId === dto.teamId && p.status === 'APPROVED');
+    if (alreadyPaid) throw new BadRequestException('El equipo ya tiene un pago aprobado para este partido');
+
     const status = dto.method === 'CASH' ? 'APPROVED' : 'PENDING';
     const payment = await this.paymentsRepository.create({
       matchId: dto.matchId,
