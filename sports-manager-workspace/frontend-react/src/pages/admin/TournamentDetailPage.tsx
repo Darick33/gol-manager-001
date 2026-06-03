@@ -325,38 +325,41 @@ export default function TournamentDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{
-        display: 'flex', gap: 4, marginBottom: 24,
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.06)',
-        borderRadius: 12, padding: 4,
-        width: 'fit-content',
-      }}>
-        {TABS.map(({ key, label, icon: Icon }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '7px 14px', borderRadius: 9, border: 'none',
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
-              transition: 'background 0.15s, color 0.15s',
-              background: tab === key ? 'rgba(16,185,129,0.12)' : 'transparent',
-              color: tab === key ? '#10b981' : '#475569',
-            }}
-          >
-            <Icon size={14} />
-            {label}
-            {key === 'teams' && teams.length > 0 && (
-              <span style={{
-                fontSize: 11, fontWeight: 700,
-                background: tab === key ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
-                color: tab === key ? '#10b981' : '#64748b',
-                padding: '1px 6px', borderRadius: 100,
-              }}>{teams.length}</span>
-            )}
-          </button>
-        ))}
+      <div className="scrollbar-hide" style={{ width: '100%', overflowX: 'auto', marginBottom: 24 }}>
+        <div style={{
+          display: 'flex', gap: 4,
+          background: 'rgba(255,255,255,0.02)',
+          border: '1px solid rgba(255,255,255,0.06)',
+          borderRadius: 12, padding: 4,
+          width: 'fit-content', minWidth: '100%',
+        }}>
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '7px 12px', borderRadius: 9, border: 'none',
+                fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                transition: 'background 0.15s, color 0.15s',
+                background: tab === key ? 'rgba(16,185,129,0.12)' : 'transparent',
+                color: tab === key ? '#10b981' : '#475569',
+                whiteSpace: 'nowrap', flexShrink: 0,
+              }}
+            >
+              <Icon size={14} />
+              <span>{label}</span>
+              {key === 'teams' && teams.length > 0 && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700,
+                  background: tab === key ? 'rgba(16,185,129,0.2)' : 'rgba(255,255,255,0.06)',
+                  color: tab === key ? '#10b981' : '#64748b',
+                  padding: '1px 6px', borderRadius: 100,
+                }}>{teams.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab content */}
