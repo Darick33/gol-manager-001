@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Trophy, ArrowLeft, Calendar, Wifi, FileText, Swords } from 'lucide-react';
-import { publicApi, type PublicMatch, type StandingRow, type ScorerRow } from '../../api/public.api';
+import { Trophy, ArrowLeft, Calendar, FileText, Swords, Users } from 'lucide-react';
+import { publicApi, type PublicMatch, type StandingRow, type ScorerRow, type PublicTournament } from '../../api/public.api';
 
 // ── animations ───────────────────────────────────────────────────────────────
 const fadeUp = {
@@ -66,7 +66,6 @@ function MatchRow({ match, index }: { match: PublicMatch; index: number }) {
         display: 'flex', alignItems: 'center', gap: 12,
       }}
     >
-      {/* date/status column */}
       <div style={{ width: 64, flexShrink: 0, textAlign: 'center' }}>
         {isLive ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
@@ -93,7 +92,6 @@ function MatchRow({ match, index }: { match: PublicMatch; index: number }) {
         )}
       </div>
 
-      {/* home team */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, justifyContent: 'flex-end' }}>
         <span style={{
           fontSize: 13, fontWeight: isFinished || isLive ? 700 : 500,
@@ -105,7 +103,6 @@ function MatchRow({ match, index }: { match: PublicMatch; index: number }) {
         <TeamLogo name={match.homeTeam.name} logoUrl={match.homeTeam.logoUrl} color={match.homeTeam.primaryColor} size={34} />
       </div>
 
-      {/* score */}
       <div style={{
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6,
         background: 'rgba(0,0,0,0.25)', borderRadius: 8, padding: '5px 12px',
@@ -114,20 +111,15 @@ function MatchRow({ match, index }: { match: PublicMatch; index: number }) {
       }}>
         {isFinished || isLive ? (
           <>
-            <span style={{ fontSize: 16, fontWeight: 900, color: '#f8fafc', fontVariantNumeric: 'tabular-nums' }}>
-              {match.homeScore}
-            </span>
+            <span style={{ fontSize: 16, fontWeight: 900, color: '#f8fafc', fontVariantNumeric: 'tabular-nums' }}>{match.homeScore}</span>
             <span style={{ fontSize: 12, color: '#334155' }}>-</span>
-            <span style={{ fontSize: 16, fontWeight: 900, color: '#f8fafc', fontVariantNumeric: 'tabular-nums' }}>
-              {match.awayScore}
-            </span>
+            <span style={{ fontSize: 16, fontWeight: 900, color: '#f8fafc', fontVariantNumeric: 'tabular-nums' }}>{match.awayScore}</span>
           </>
         ) : (
           <span style={{ fontSize: 13, color: '#334155', fontWeight: 600 }}>vs</span>
         )}
       </div>
 
-      {/* away team */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         <TeamLogo name={match.awayTeam.name} logoUrl={match.awayTeam.logoUrl} color={match.awayTeam.primaryColor} size={34} />
         <span style={{
@@ -139,12 +131,9 @@ function MatchRow({ match, index }: { match: PublicMatch; index: number }) {
         </span>
       </div>
 
-      {/* acta */}
       {match.actaPdfUrl && (
         <a
-          href={match.actaPdfUrl}
-          target="_blank" rel="noopener noreferrer"
-          title="Descargar acta"
+          href={match.actaPdfUrl} target="_blank" rel="noopener noreferrer" title="Descargar acta"
           style={{ flexShrink: 0, color: '#334155', transition: 'color 0.15s' }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#10b981'; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#334155'; }}
@@ -164,7 +153,7 @@ function FixtureTab({ slug }: { slug: string }) {
     refetchInterval: 15_000,
   });
 
-  const grouped = useMemo(() => {
+  const grouped = (() => {
     const map = new Map<number | string, PublicMatch[]>();
     for (const m of matches) {
       const key = m.stage ?? 'Sin jornada';
@@ -174,7 +163,7 @@ function FixtureTab({ slug }: { slug: string }) {
       if (typeof a === 'number' && typeof b === 'number') return a - b;
       return 0;
     });
-  }, [matches]);
+  })();
 
   if (isLoading) return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -229,19 +218,11 @@ function StandingsTab({ slug }: { slug: string }) {
     </div>
   );
 
-  const colStyle: React.CSSProperties = {
-    fontSize: 11, fontWeight: 700, color: '#334155',
-    letterSpacing: '0.05em', textAlign: 'center' as const,
-  };
+  const colStyle: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#334155', letterSpacing: '0.05em', textAlign: 'center' as const };
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      {/* header */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '28px 1fr 36px 36px 36px 36px 44px 44px 44px 44px',
-        gap: 4, padding: '8px 12px', marginBottom: 4,
-      }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '28px 1fr 36px 36px 36px 36px 44px 44px 44px 44px', gap: 4, padding: '8px 12px', marginBottom: 4 }}>
         <span style={colStyle}>#</span>
         <span style={{ ...colStyle, textAlign: 'left' }}>Equipo</span>
         <span style={colStyle}>PJ</span>
@@ -253,7 +234,6 @@ function StandingsTab({ slug }: { slug: string }) {
         <span style={colStyle}>DG</span>
         <span style={{ ...colStyle, color: '#10b981' }}>PTS</span>
       </div>
-
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {standings.map((row: StandingRow, i: number) => (
           <StandingRowItem key={row.team.id} row={row} position={i + 1} index={i} />
@@ -271,52 +251,28 @@ function StandingRowItem({ row, position, index }: { row: StandingRow; position:
     <motion.div
       custom={index} variants={fadeUp} initial="hidden" animate="visible"
       style={{
-        display: 'grid',
-        gridTemplateColumns: '28px 1fr 36px 36px 36px 36px 44px 44px 44px 44px',
+        display: 'grid', gridTemplateColumns: '28px 1fr 36px 36px 36px 36px 44px 44px 44px 44px',
         gap: 4, padding: '10px 12px', borderRadius: 10,
         background: isTop3 ? 'rgba(16,185,129,0.03)' : 'rgba(255,255,255,0.02)',
         border: isTop3 ? '1px solid rgba(16,185,129,0.09)' : '1px solid rgba(255,255,255,0.04)',
         alignItems: 'center',
       }}
     >
-      <span style={{ fontSize: 12, fontWeight: 700, color: posColor, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-        {position}
-      </span>
-
+      <span style={{ fontSize: 12, fontWeight: 700, color: posColor, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{position}</span>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
         {row.team.primaryColor && (
-          <div style={{
-            width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-            background: row.team.primaryColor,
-            boxShadow: `0 0 5px ${row.team.primaryColor}60`,
-          }} />
+          <div style={{ width: 10, height: 10, borderRadius: '50%', flexShrink: 0, background: row.team.primaryColor, boxShadow: `0 0 5px ${row.team.primaryColor}60` }} />
         )}
-        {row.team.logoUrl ? (
-          <img src={row.team.logoUrl} alt={row.team.name} style={{ width: 22, height: 22, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />
-        ) : null}
-        <span style={{
-          fontSize: 13, fontWeight: 600, color: '#e2e8f0',
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {row.team.name}
-        </span>
+        {row.team.logoUrl && <img src={row.team.logoUrl} alt={row.team.name} style={{ width: 22, height: 22, borderRadius: 5, objectFit: 'cover', flexShrink: 0 }} />}
+        <span style={{ fontSize: 13, fontWeight: 600, color: '#e2e8f0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.team.name}</span>
       </div>
-
       {[row.played, row.won, row.drawn, row.lost, row.goalsFor, row.goalsAgainst].map((v, i) => (
         <span key={i} style={{ fontSize: 13, color: '#64748b', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{v}</span>
       ))}
-
-      <span style={{
-        fontSize: 13, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
-        color: row.goalDifference > 0 ? '#10b981' : row.goalDifference < 0 ? '#f87171' : '#64748b',
-        fontWeight: 600,
-      }}>
+      <span style={{ fontSize: 13, textAlign: 'center', fontVariantNumeric: 'tabular-nums', color: row.goalDifference > 0 ? '#10b981' : row.goalDifference < 0 ? '#f87171' : '#64748b', fontWeight: 600 }}>
         {row.goalDifference > 0 ? `+${row.goalDifference}` : row.goalDifference}
       </span>
-
-      <span style={{ fontSize: 15, fontWeight: 900, color: '#f8fafc', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-        {row.points}
-      </span>
+      <span style={{ fontSize: 15, fontWeight: 900, color: '#f8fafc', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{row.points}</span>
     </motion.div>
   );
 }
@@ -359,25 +315,15 @@ function ScorersTab({ slug }: { slug: string }) {
               border: isTop ? '1px solid rgba(245,158,11,0.14)' : '1px solid rgba(255,255,255,0.05)',
             }}
           >
-            {/* position */}
             <div style={{ width: 28, textAlign: 'center', flexShrink: 0 }}>
               {medalColor ? (
-                <span style={{ fontSize: 16 }}>
-                  {i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}
-                </span>
+                <span style={{ fontSize: 16 }}>{i === 0 ? '🥇' : i === 1 ? '🥈' : '🥉'}</span>
               ) : (
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>
-                  {i + 1}
-                </span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>{i + 1}</span>
               )}
             </div>
-
-            {/* player photo / initials */}
             {row.player.photoUrl ? (
-              <img
-                src={row.player.photoUrl} alt={row.player.name}
-                style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255,255,255,0.08)' }}
-              />
+              <img src={row.player.photoUrl} alt={row.player.name} style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: '1px solid rgba(255,255,255,0.08)' }} />
             ) : (
               <div style={{
                 width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
@@ -389,36 +335,25 @@ function ScorersTab({ slug }: { slug: string }) {
                 {row.player.name.split(' ').map(w => w[0]).slice(0, 2).join('')}
               </div>
             )}
-
-            {/* name + team */}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {row.player.name}
-                <span style={{
-                  fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                  background: 'rgba(255,255,255,0.06)', color: '#64748b', fontWeight: 600,
-                }}>
+                <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,255,255,0.06)', color: '#64748b', fontWeight: 600 }}>
                   #{row.player.dorsal}
                 </span>
               </div>
               <div style={{ fontSize: 12, color: '#475569', marginTop: 2, display: 'flex', alignItems: 'center', gap: 5 }}>
-                {row.team.primaryColor && (
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: row.team.primaryColor, flexShrink: 0 }} />
-                )}
+                {row.team.primaryColor && <div style={{ width: 7, height: 7, borderRadius: '50%', background: row.team.primaryColor, flexShrink: 0 }} />}
                 {row.team.name}
               </div>
             </div>
-
-            {/* goals */}
             <div style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center',
               background: isTop ? 'rgba(245,158,11,0.1)' : 'rgba(255,255,255,0.04)',
               border: isTop ? '1px solid rgba(245,158,11,0.2)' : '1px solid rgba(255,255,255,0.06)',
               borderRadius: 10, padding: '6px 12px', flexShrink: 0,
             }}>
-              <span style={{ fontSize: 20, fontWeight: 900, color: isTop ? '#f59e0b' : '#f1f5f9', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-                {row.goals}
-              </span>
+              <span style={{ fontSize: 20, fontWeight: 900, color: isTop ? '#f59e0b' : '#f1f5f9', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{row.goals}</span>
               <span style={{ fontSize: 9, color: '#475569', fontWeight: 600, marginTop: 1 }}>GOLES</span>
             </div>
           </motion.div>
@@ -428,8 +363,49 @@ function ScorersTab({ slug }: { slug: string }) {
   );
 }
 
+// ── Teams Tab ────────────────────────────────────────────────────────────────
+function TeamsTab({ slug, tournament }: { slug: string; tournament: PublicTournament }) {
+  const navigate = useNavigate();
+  const teams = tournament.teams;
+
+  if (!teams.length) return (
+    <div style={{ textAlign: 'center', padding: '60px 24px' }}>
+      <Users size={30} color="#1e293b" style={{ marginBottom: 12 }} />
+      <p style={{ color: '#475569', fontSize: 14, margin: 0 }}>No hay equipos inscritos aún.</p>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))', gap: 10 }}>
+      {teams.map((team, i) => {
+        const accent = team.primaryColor ?? '#475569';
+        return (
+          <motion.button
+            key={team.id}
+            custom={i} variants={fadeUp} initial="hidden" animate="visible"
+            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.96 }}
+            onClick={() => navigate(`/portal/${slug}/equipos/${team.id}`, { state: { team, slug } })}
+            style={{
+              background: `linear-gradient(150deg, ${accent}14 0%, rgba(255,255,255,0.015) 100%)`,
+              border: `1px solid ${accent}28`,
+              borderRadius: 16, padding: '22px 14px 18px',
+              cursor: 'pointer', textAlign: 'center',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12,
+            }}
+          >
+            <TeamLogo name={team.name} logoUrl={team.logoUrl} color={team.primaryColor} size={60} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', lineHeight: 1.3, textAlign: 'center' }}>
+              {team.name}
+            </span>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── page ─────────────────────────────────────────────────────────────────────
-type Tab = 'fixture' | 'standings' | 'scorers';
+type Tab = 'fixture' | 'standings' | 'scorers' | 'teams';
 
 export default function PublicTournamentPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -446,6 +422,7 @@ export default function PublicTournamentPage() {
     { id: 'fixture', label: 'Fixture' },
     { id: 'standings', label: 'Tabla' },
     { id: 'scorers', label: 'Goleadores' },
+    { id: 'teams', label: 'Equipos' },
   ];
 
   return (
@@ -454,7 +431,6 @@ export default function PublicTournamentPage() {
       background: 'linear-gradient(160deg, #050508 0%, #0a0f1a 50%, #050508 100%)',
       fontFamily: "'Inter', system-ui, sans-serif",
     }}>
-      {/* ── header ── */}
       <div style={{
         borderBottom: '1px solid rgba(255,255,255,0.06)',
         background: 'rgba(5,5,8,0.85)',
@@ -464,7 +440,6 @@ export default function PublicTournamentPage() {
         position: 'sticky', top: 0, zIndex: 10,
       }}>
         <div style={{ maxWidth: 720, margin: '0 auto' }}>
-          {/* top bar */}
           <div style={{ height: 56, display: 'flex', alignItems: 'center', gap: 12 }}>
             <button
               onClick={() => navigate('/portal')}
@@ -487,11 +462,7 @@ export default function PublicTournamentPage() {
                   {tournament.name}
                 </span>
                 {tournament.status === 'ACTIVE' && (
-                  <div style={{
-                    marginLeft: 'auto', flexShrink: 0,
-                    padding: '3px 9px', borderRadius: 20,
-                    background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
-                  }}>
+                  <div style={{ marginLeft: 'auto', flexShrink: 0, padding: '3px 9px', borderRadius: 20, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)' }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: '#10b981' }}>ACTIVO</span>
                   </div>
                 )}
@@ -499,7 +470,6 @@ export default function PublicTournamentPage() {
             )}
           </div>
 
-          {/* tabs */}
           <div style={{ display: 'flex', gap: 2, paddingBottom: 0, marginBottom: -1 }}>
             {tabs.map((t) => (
               <button
@@ -521,7 +491,6 @@ export default function PublicTournamentPage() {
         </div>
       </div>
 
-      {/* ── content ── */}
       <div style={{ maxWidth: 720, margin: '0 auto', padding: '24px 24px 48px' }}>
         {isLoading ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -541,6 +510,7 @@ export default function PublicTournamentPage() {
               {slug && tab === 'fixture' && <FixtureTab slug={slug} />}
               {slug && tab === 'standings' && <StandingsTab slug={slug} />}
               {slug && tab === 'scorers' && <ScorersTab slug={slug} />}
+              {slug && tab === 'teams' && tournament && <TeamsTab slug={slug} tournament={tournament} />}
             </motion.div>
           </AnimatePresence>
         )}

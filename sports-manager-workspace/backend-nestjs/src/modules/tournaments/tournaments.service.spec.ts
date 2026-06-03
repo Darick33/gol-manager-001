@@ -5,10 +5,13 @@ import { TournamentsRepository } from './tournaments.repository';
 import { TeamsRepository } from '../teams/teams.repository';
 import { MatchesRepository } from '../matches/matches.repository';
 
+const PILOTO_LEAGUE_ID = '00000000-0000-0000-0000-000000000001';
+
 const mockTournamentsRepo = {
   findBySlug: jest.fn(),
   create: jest.fn(),
   findAll: jest.fn(),
+  findAllGlobal: jest.fn(),
   findById: jest.fn(),
   update: jest.fn(),
 };
@@ -46,7 +49,7 @@ describe('TournamentsService', () => {
       mockTournamentsRepo.findBySlug.mockResolvedValue(null);
       mockTournamentsRepo.create.mockResolvedValue({ id: 'abc', yellowCardFine: 0.5 });
 
-      await service.create({ ...baseDto, yellowCardFine: 0.5 });
+      await service.create({ ...baseDto, yellowCardFine: 0.5 }, PILOTO_LEAGUE_ID);
 
       expect(mockTournamentsRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ yellowCardFine: 0.5 }),
@@ -57,7 +60,7 @@ describe('TournamentsService', () => {
       mockTournamentsRepo.findBySlug.mockResolvedValue(null);
       mockTournamentsRepo.create.mockResolvedValue({ id: 'abc' });
 
-      await service.create({ ...baseDto, refereeFeeEnabled: false });
+      await service.create({ ...baseDto, refereeFeeEnabled: false }, PILOTO_LEAGUE_ID);
 
       expect(mockTournamentsRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({ refereeFeeEnabled: false }),
@@ -67,7 +70,7 @@ describe('TournamentsService', () => {
     it('throws BadRequestException when slug is already taken', async () => {
       mockTournamentsRepo.findBySlug.mockResolvedValue({ id: 'existing' });
 
-      await expect(service.create({ ...baseDto, slug: 'taken' })).rejects.toThrow(
+      await expect(service.create({ ...baseDto, slug: 'taken' }, PILOTO_LEAGUE_ID)).rejects.toThrow(
         BadRequestException,
       );
     });
