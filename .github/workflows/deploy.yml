@@ -6,8 +6,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_BACKEND: ghcr.io/${{ github.repository }}/golmanager-backend
-  IMAGE_FRONTEND: ghcr.io/${{ github.repository }}/golmanager-frontend
 
 jobs:
   build-and-push:
@@ -15,10 +13,20 @@ jobs:
     permissions:
       contents: read
       packages: write
+    outputs:
+      image_backend: ${{ steps.vars.outputs.image_backend }}
+      image_frontend: ${{ steps.vars.outputs.image_frontend }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set lowercase image names
+        id: vars
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "image_backend=ghcr.io/${OWNER}/golmanager-backend" >> $GITHUB_OUTPUT
+          echo "image_frontend=ghcr.io/${OWNER}/golmanager-frontend" >> $GITHUB_OUTPUT
 
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
@@ -32,14 +40,18 @@ jobs:
         with:
           context: ./sports-manager-workspace/backend-nestjs
           push: true
-          tags: ${{ env.IMAGE_BACKEND }}:latest,${{ env.IMAGE_BACKEND }}:${{ github.sha }}
+          tags: |
+            ${{ steps.vars.outputs.image_backend }}:latest
+            ${{ steps.vars.outputs.image_backend }}:${{ github.sha }}
 
       - name: Build & push frontend
         uses: docker/build-push-action@v5
         with:
           context: ./sports-manager-workspace/frontend-react
           push: true
-          tags: ${{ env.IMAGE_FRONTEND }}:latest,${{ env.IMAGE_FRONTEND }}:${{ github.sha }}
+          tags: |
+            ${{ steps.vars.outputs.image_frontend }}:latest
+            ${{ steps.vars.outputs.image_frontend }}:${{ github.sha }}
 
   deploy:
     needs: build-and-push
@@ -52,15 +64,14 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE_TAG
+          envs: GHCR_TOKEN,GHCR_USER
           script: |
-            cd /opt/golmanager
+            cd /opt/golmanager/gol-manager-001
             git pull origin main
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
-            docker compose -f infrastructure/docker-compose.prod.yml pull
-            docker compose -f infrastructure/docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f sports-manager-workspace/infrastructure/docker-compose.prod.yml pull
+            docker compose -f sports-manager-workspace/infrastructure/docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GHCR_USER: ${{ github.actor }}
-          IMAGE_TAG: ${{ github.sha }}

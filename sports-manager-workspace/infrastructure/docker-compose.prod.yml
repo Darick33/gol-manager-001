@@ -13,7 +13,7 @@ services:
       - internal
 
   backend:
-    image: ghcr.io/${GITHUB_REPO}/golmanager-backend:latest
+    image: ghcr.io/darick33/golmanager-backend:latest
     container_name: golmanager-backend
     restart: unless-stopped
     environment:
@@ -31,7 +31,7 @@ services:
       - web
 
   frontend:
-    image: ghcr.io/${GITHUB_REPO}/golmanager-frontend:latest
+    image: ghcr.io/darick33/golmanager-frontend:latest
     container_name: golmanager-frontend
     restart: unless-stopped
     networks:
