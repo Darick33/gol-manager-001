@@ -7,7 +7,7 @@ export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
   private extractLeagueId(req: Request): string {
-    const league = (req as any).league;
+    const league = (req as any).league ?? (req as any).raw?.league;
     if (!league?.id) throw new NotFoundException('Liga no especificada. Usá X-League-Subdomain o ?league=');
     return league.id as string;
   }

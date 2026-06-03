@@ -8,7 +8,11 @@ export class LeagueMiddleware implements NestMiddleware {
 
   async use(req: Request, res: Response, next: NextFunction) {
     const subdomain = req.headers['x-league-subdomain'] as string | undefined;
-    const queryLeague = (req.query as Record<string, string>).league;
+    const rawUrl = req.url ?? '';
+    const qIdx = rawUrl.indexOf('?');
+    const queryLeague = qIdx >= 0
+      ? new URLSearchParams(rawUrl.slice(qIdx + 1)).get('league') ?? undefined
+      : undefined;
     const slug = subdomain || queryLeague;
 
     if (slug) {
