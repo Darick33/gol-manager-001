@@ -12,5 +12,6 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/drizzle ./drizzle
+COPY --from=builder /app/src/modules/pdf/fonts ./src/modules/pdf/fonts
 EXPOSE 3000
 CMD ["node", "dist/main"]
