@@ -23,7 +23,7 @@ async function bootstrap() {
       cb(new Error(`Origin ${origin} not allowed`), false);
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-League-Subdomain'],
     credentials: true,
   });
   app.setGlobalPrefix('api');
