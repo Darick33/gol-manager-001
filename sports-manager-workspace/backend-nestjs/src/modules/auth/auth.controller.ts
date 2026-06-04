@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { HandshakeDto } from './dto/handshake.dto';
+import { Public } from './decorators/public.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -14,6 +15,7 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Public()
   @Post('handshake')
   handshake(@Body() dto: HandshakeDto) {
     return this.authService.exchangeHandshake(dto);
