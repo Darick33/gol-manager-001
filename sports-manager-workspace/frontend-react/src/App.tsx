@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import AdminLayout from './components/layout/AdminLayout';
 import PlatformLayout from './components/layout/PlatformLayout';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import SuperAdminRoute from './components/common/SuperAdminRoute';
 import PlatformRoute from './components/common/PlatformRoute';
 import DashboardPage from './pages/admin/DashboardPage';
 import TournamentsPage from './pages/admin/TournamentsPage';
@@ -136,7 +137,7 @@ export default function App() {
           <Route path="teams" element={<TeamsPage />} />
           <Route path="fines" element={<FinesPage />} />
           <Route path="payments" element={<PaymentsPage />} />
-          <Route path="users" element={<UsersPage />} />
+          <Route path="users" element={<SuperAdminRoute><UsersPage /></SuperAdminRoute>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
