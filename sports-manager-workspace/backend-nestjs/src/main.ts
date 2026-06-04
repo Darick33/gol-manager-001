@@ -16,14 +16,17 @@ async function bootstrap() {
   const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173')
     .split(',')
     .map((o) => o.trim());
+  const baseDomain = process.env.CORS_BASE_DOMAIN; // e.g. golmanager.qzz.io
 
   app.enableCors({
     origin: (origin, cb) => {
-      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.includes(origin)) return cb(null, true);
+      if (baseDomain && (origin === `https://${baseDomain}` || origin.endsWith(`.${baseDomain}`))) return cb(null, true);
       cb(new Error(`Origin ${origin} not allowed`), false);
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-League-Subdomain'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-League-Subdomain', 'X-Active-League-Id'],
     credentials: true,
   });
   app.setGlobalPrefix('api');
