@@ -23,6 +23,7 @@ import { LeaguesModule } from './modules/leagues/leagues.module';
 import { LeagueMiddleware } from './modules/leagues/league.middleware';
 import { ExportsModule } from './modules/exports/exports.module';
 import { RedisModule } from './modules/redis/redis.module';
+import { PlatformModule } from './modules/platform/platform.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { RedisModule } from './modules/redis/redis.module';
     PublicModule,
     LeaguesModule,
     ExportsModule,
+    PlatformModule,
   ],
   controllers: [AppController],
   providers: [

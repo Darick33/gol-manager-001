@@ -34,4 +34,10 @@ export class LeaguesService {
     if (!league) throw new NotFoundException('Liga no encontrada');
     return league;
   }
+
+  async updateStatus(id: string, status: 'ACTIVE' | 'SUSPENDED') {
+    const league = await this.leaguesRepository.updateStatus(id, status);
+    if (!league) throw new NotFoundException('Liga no encontrada');
+    return league;
+  }
 }
