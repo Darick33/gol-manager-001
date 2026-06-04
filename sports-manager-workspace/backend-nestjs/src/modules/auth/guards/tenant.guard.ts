@@ -2,14 +2,20 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { LeaguesRepository } from '../../leagues/leagues.repository';
+import { eq } from 'drizzle-orm';
+import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { DRIZZLE } from '../../../database/database.module';
+import * as schema from '../../../database/schema';
 
 @Injectable()
 export class TenantGuard implements CanActivate {
-  constructor(private leaguesRepository: LeaguesRepository) {}
+  constructor(
+    @Inject(DRIZZLE) private db: PostgresJsDatabase<typeof schema>,
+  ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
     const req = ctx.switchToHttp().getRequest();
@@ -20,32 +26,30 @@ export class TenantGuard implements CanActivate {
     if (user.role === 'PLATFORM_ADMIN') {
       const activeLeagueHeader = req.headers['x-active-league-id'] as string | undefined;
       if (activeLeagueHeader) {
-        // Validate that the league exists and is not suspended
-        const league = await this.leaguesRepository.findById(activeLeagueHeader);
-        if (!league) {
-          throw new ForbiddenException('Liga no encontrada');
-        }
-        if (league.status === 'SUSPENDED') {
-          throw new ForbiddenException('Liga suspendida');
-        }
+        const [league] = await this.db
+          .select({ status: schema.leagues.status })
+          .from(schema.leagues)
+          .where(eq(schema.leagues.id, activeLeagueHeader))
+          .limit(1);
+        if (!league) throw new ForbiddenException('Liga no encontrada');
+        if (league.status !== 'ACTIVE') throw new ForbiddenException('Liga suspendida');
         req.activeLeagueId = activeLeagueHeader;
       }
-      // No header → platform-level access, no league context required
       return true;
     }
 
-    // All other roles must have a leagueId assigned
     if (!user.leagueId) {
       throw new ForbiddenException('Sin liga asignada. Por favor iniciá sesión nuevamente.');
     }
 
-    // Check league suspension per-request (cache via flag to avoid double lookup)
     if (!req.__leagueStatusChecked) {
-      const league = await this.leaguesRepository.findById(user.leagueId);
+      const [league] = await this.db
+        .select({ status: schema.leagues.status })
+        .from(schema.leagues)
+        .where(eq(schema.leagues.id, user.leagueId))
+        .limit(1);
       req.__leagueStatusChecked = true;
-      if (league?.status === 'SUSPENDED') {
-        throw new ForbiddenException('Liga suspendida');
-      }
+      if (league?.status !== 'ACTIVE') throw new ForbiddenException('Liga suspendida');
     }
 
     return true;
