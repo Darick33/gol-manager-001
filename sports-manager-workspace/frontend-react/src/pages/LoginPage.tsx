@@ -18,7 +18,13 @@ export default function LoginPage() {
     mutationFn: () => authApi.login(email, password),
     onSuccess: (data) => {
       login(data.user, data.access_token);
-      if (data.user.role === 'PLATFORM_ADMIN') {
+      const onLeagueSubdomain = (() => {
+        const h = window.location.hostname;
+        if (h === 'localhost' || h === '127.0.0.1') return !!new URLSearchParams(window.location.search).get('league');
+        const base = import.meta.env.VITE_BASE_DOMAIN as string | undefined;
+        return h.split('.').length > (base ? base.split('.').length : 2);
+      })();
+      if (data.user.role === 'PLATFORM_ADMIN' && !onLeagueSubdomain) {
         navigate('/platform');
       } else {
         navigate('/admin');

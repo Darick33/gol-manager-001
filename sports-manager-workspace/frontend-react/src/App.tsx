@@ -70,7 +70,8 @@ export default function App() {
       .then((data) => {
         login(data.user, data.access_token);
         setActiveLeagueId(data.user.leagueId);
-        window.history.replaceState({}, '', window.location.pathname);
+        window.history.replaceState({}, '', '/admin');
+        navigate('/admin', { replace: true });
       })
       .catch(() => {
         navigate('/login', { replace: true });
