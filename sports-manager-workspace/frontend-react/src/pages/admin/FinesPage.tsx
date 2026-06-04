@@ -22,7 +22,7 @@ const STATUS_FILTERS: Array<{ value: 'ALL' | FineStatus; label: string }> = [
 // ── helpers ────────────────────────────────────────────────────────────────
 function formatCOP(amount: number): string {
   return new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
+    style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 2,
   }).format(amount);
 }
 

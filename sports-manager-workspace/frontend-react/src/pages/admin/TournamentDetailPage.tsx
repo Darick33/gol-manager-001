@@ -667,7 +667,7 @@ function TeamCard({ team, tournament, balance, onAddPlayer, onEditPlayer, onEdit
               border: '1px solid rgba(239,68,68,0.2)',
               padding: '2px 8px', borderRadius: 100,
             }}>
-              Debe {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(Math.abs(balance))}
+              Debe {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Math.abs(balance))}
             </span>
           )}
           {balance !== null && balance === 0 && (
@@ -1876,7 +1876,7 @@ function AdminScorersTab({ tournamentId }: { tournamentId: string }) {
 // ─── Balances Tab ─────────────────────────────────────────────────────────────
 
 const COP = (n: number) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
 
 const LEDGER_LABEL: Record<string, string> = {
   MATCH_CHARGE:    'Cobro partido',

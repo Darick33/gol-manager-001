@@ -356,7 +356,7 @@ export class PdfService {
     const aFines = aYellow * data.tournament.yellowCardFine + aRed * data.tournament.redCardFine;
     const grandTotal = hFines + aFines + data.tournament.courtFee + data.tournament.refereeFee;
 
-    const fmt = (n: number) => `$${n.toLocaleString('es-CO')}`;
+    const fmt = (n: number) => `$${n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
     const row = (label: string, value: string, labelColor = C.mid, valueColor = C.dark) => {
       doc.fillColor(labelColor).font(FONT_REGULAR).fontSize(9.5).text(label, M + 10, y, { width: CONTENT_W - 90 });
@@ -408,7 +408,7 @@ export class PdfService {
 
   private drawPaymentsPage(doc: Doc, data: ActaData, receiptImages: Map<string, Buffer>): void {
     const PAGE_H = 792;
-    const fmt = (n: number) => `$${n.toLocaleString('es-CO')}`;
+    const fmt = (n: number) => `$${n.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
     // Page 2 header bar
     doc.rect(0, 0, PAGE_W, 56).fill(C.headerBg);

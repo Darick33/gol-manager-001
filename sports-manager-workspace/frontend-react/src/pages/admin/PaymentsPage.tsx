@@ -28,7 +28,7 @@ const fadeUp = {
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const COP = (n: number) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
 
 function formatDate(iso: string | null) {
   if (!iso) return 'Sin fecha';

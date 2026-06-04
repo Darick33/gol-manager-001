@@ -69,7 +69,7 @@ export class FinesService {
         payload.delegatePhone,
         `🟡 *Multa generada — ${payload.teamName}*\n` +
         `Motivo: ${reason}\n` +
-        `Monto: $${payload.amount.toLocaleString('es-CO')}\n` +
+        `Monto: $${payload.amount.toLocaleString('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}\n` +
         `Estado: PENDIENTE`,
       );
     }
