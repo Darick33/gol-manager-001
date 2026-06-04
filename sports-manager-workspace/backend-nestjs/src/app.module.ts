@@ -22,6 +22,7 @@ import { PublicModule } from './modules/public/public.module';
 import { LeaguesModule } from './modules/leagues/leagues.module';
 import { LeagueMiddleware } from './modules/leagues/league.middleware';
 import { ExportsModule } from './modules/exports/exports.module';
+import { RedisModule } from './modules/redis/redis.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ExportsModule } from './modules/exports/exports.module';
     ThrottlerModule.forRoot([
       { name: 'global', ttl: 60_000, limit: 120 },
     ]),
+    RedisModule,
     DatabaseModule,
     UsersModule,
     AuthModule,
