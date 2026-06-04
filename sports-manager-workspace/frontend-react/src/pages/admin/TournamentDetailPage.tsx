@@ -1690,6 +1690,8 @@ function StandingsTab({ teams, matches, format, tournamentId }: { teams: Team[];
 
   const col: React.CSSProperties = { padding: '10px 12px', fontSize: 13, fontVariantNumeric: 'tabular-nums' };
   const hcol: React.CSSProperties = { ...col, fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.5px' };
+  const stickyBg = '#0d0d14';
+  const stickyBgHighlight = '#0d1a10';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1699,13 +1701,14 @@ function StandingsTab({ teams, matches, format, tournamentId }: { teams: Team[];
       </div>
       <div style={{
         borderRadius: 14, border: '1px solid rgba(255,255,255,0.07)',
-        background: 'rgba(255,255,255,0.02)', overflow: 'hidden',
+        background: 'rgba(255,255,255,0.02)',
+        overflowX: 'auto', WebkitOverflowScrolling: 'touch' as any,
       }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <th style={{ ...hcol, width: 32, textAlign: 'center' }}>#</th>
-            <th style={{ ...hcol, textAlign: 'left' }}>Equipo</th>
+            <th style={{ ...hcol, width: 36, textAlign: 'center', position: 'sticky', left: 0, zIndex: 2, background: stickyBg }}>#</th>
+            <th style={{ ...hcol, textAlign: 'left', position: 'sticky', left: 36, zIndex: 2, background: stickyBg, minWidth: 130 }}>Equipo</th>
             <th style={{ ...hcol, textAlign: 'center' }}>PJ</th>
             <th style={{ ...hcol, textAlign: 'center' }}>G</th>
             <th style={{ ...hcol, textAlign: 'center' }}>E</th>
@@ -1717,33 +1720,36 @@ function StandingsTab({ teams, matches, format, tournamentId }: { teams: Team[];
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ team, played, won, drawn, lost, gf, ga, gd, pts }, i) => (
-            <tr
-              key={team?.id ?? i}
-              style={{
-                borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-                background: i === 0 ? 'rgba(16,185,129,0.04)' : 'transparent',
-              }}
-            >
-              <td style={{ ...col, textAlign: 'center', color: i === 0 ? '#10b981' : '#64748b', fontWeight: 700 }}>{i + 1}</td>
-              <td style={{ ...col, color: '#f1f5f9', fontWeight: 600 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <TeamLogo team={team} size={24} />
-                  {team?.name ?? '—'}
-                </div>
-              </td>
-              <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{played}</td>
-              <td style={{ ...col, textAlign: 'center', color: '#10b981', fontWeight: 600 }}>{won}</td>
-              <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{drawn}</td>
-              <td style={{ ...col, textAlign: 'center', color: '#ef4444' }}>{lost}</td>
-              <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{gf}</td>
-              <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{ga}</td>
-              <td style={{ ...col, textAlign: 'center', color: gd > 0 ? '#10b981' : gd < 0 ? '#ef4444' : '#94a3b8', fontWeight: 600 }}>
-                {gd > 0 ? `+${gd}` : gd}
-              </td>
-              <td style={{ ...col, textAlign: 'center', color: '#f8fafc', fontWeight: 800, fontSize: 15 }}>{pts}</td>
-            </tr>
-          ))}
+          {rows.map(({ team, played, won, drawn, lost, gf, ga, gd, pts }, i) => {
+            const rowBg = i === 0 ? stickyBgHighlight : stickyBg;
+            return (
+              <tr
+                key={team?.id ?? i}
+                style={{
+                  borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                  background: i === 0 ? 'rgba(16,185,129,0.04)' : 'transparent',
+                }}
+              >
+                <td style={{ ...col, textAlign: 'center', color: i === 0 ? '#10b981' : '#64748b', fontWeight: 700, position: 'sticky', left: 0, zIndex: 1, background: rowBg }}>{i + 1}</td>
+                <td style={{ ...col, color: '#f1f5f9', fontWeight: 600, position: 'sticky', left: 36, zIndex: 1, background: rowBg }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <TeamLogo team={team} size={24} />
+                    {team?.name ?? '—'}
+                  </div>
+                </td>
+                <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{played}</td>
+                <td style={{ ...col, textAlign: 'center', color: '#10b981', fontWeight: 600 }}>{won}</td>
+                <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{drawn}</td>
+                <td style={{ ...col, textAlign: 'center', color: '#ef4444' }}>{lost}</td>
+                <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{gf}</td>
+                <td style={{ ...col, textAlign: 'center', color: '#94a3b8' }}>{ga}</td>
+                <td style={{ ...col, textAlign: 'center', color: gd > 0 ? '#10b981' : gd < 0 ? '#ef4444' : '#94a3b8', fontWeight: 600 }}>
+                  {gd > 0 ? `+${gd}` : gd}
+                </td>
+                <td style={{ ...col, textAlign: 'center', color: '#f8fafc', fontWeight: 800, fontSize: 15 }}>{pts}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
