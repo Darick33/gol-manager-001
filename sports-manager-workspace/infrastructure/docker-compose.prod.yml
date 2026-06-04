@@ -12,6 +12,15 @@ services:
     networks:
       - internal
 
+  redis:
+    image: redis:7-alpine
+    container_name: golmanager-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+
   backend:
     image: ghcr.io/darick33/golmanager-backend:latest
     container_name: golmanager-backend
@@ -21,11 +30,13 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       PORT: 3000
+      REDIS_HOST: ${REDIS_HOST:-redis}
       CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
       CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
       CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
     depends_on:
       - postgres
+      - redis
     networks:
       - internal
       - web
@@ -59,3 +70,4 @@ networks:
 
 volumes:
   postgres_data:
+  redis_data:
