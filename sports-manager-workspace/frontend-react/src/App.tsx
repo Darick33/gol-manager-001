@@ -4,7 +4,10 @@ import { exchangeHandshake } from './api/auth.api';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import AdminLayout from './components/layout/AdminLayout';
+import PlatformLayout from './components/layout/PlatformLayout';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import SuperAdminRoute from './components/common/SuperAdminRoute';
+import PlatformRoute from './components/common/PlatformRoute';
 import DashboardPage from './pages/admin/DashboardPage';
 import TournamentsPage from './pages/admin/TournamentsPage';
 import TournamentDetailPage from './pages/admin/TournamentDetailPage';
@@ -13,7 +16,8 @@ import MatchesPage from './pages/admin/MatchesPage';
 import TeamsPage from './pages/admin/TeamsPage';
 import FinesPage from './pages/admin/FinesPage';
 import PaymentsPage from './pages/admin/PaymentsPage';
-import LeaguesPage from './pages/admin/LeaguesPage';
+import UsersPage from './pages/admin/UsersPage';
+import LeaguesManagementPage from './pages/platform/LeaguesManagementPage';
 import CreateLeaguePage from './pages/admin/CreateLeaguePage';
 import PublicPortalPage from './pages/public/PublicPortalPage';
 import PublicTournamentPage from './pages/public/PublicTournamentPage';
@@ -46,15 +50,6 @@ function detectSlug(): string | null {
 
 export function useLeague(): LeagueContextValue {
   return useContext(LeagueContext);
-}
-
-// ---- PLATFORM_ADMIN guard -------------------------------------------------
-function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
-  const user = useAuthStore((s) => s.user);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.role !== 'PLATFORM_ADMIN') return <Navigate to="/admin" replace />;
-  return <>{children}</>;
 }
 
 // ---- App ------------------------------------------------------------------
@@ -110,19 +105,23 @@ export default function App() {
           }
         />
 
-        {/* PLATFORM_ADMIN routes — outside AdminLayout, own guard */}
+        {/* Redirect old /admin/leagues path to /platform */}
+        <Route path="/admin/leagues" element={<Navigate to="/platform" replace />} />
+
+        {/* PLATFORM_ADMIN routes — PlatformLayout, no sidebar */}
         <Route
-          path="/admin/leagues"
+          path="/platform"
           element={
-            <PlatformAdminRoute>
-              <AdminLayout />
-            </PlatformAdminRoute>
+            <PlatformRoute>
+              <PlatformLayout />
+            </PlatformRoute>
           }
         >
-          <Route index element={<LeaguesPage />} />
-          <Route path="new" element={<CreateLeaguePage />} />
+          <Route index element={<LeaguesManagementPage />} />
+          <Route path="leagues/new" element={<CreateLeaguePage />} />
         </Route>
 
+        {/* League admin routes */}
         <Route
           path="/admin"
           element={
@@ -138,6 +137,7 @@ export default function App() {
           <Route path="teams" element={<TeamsPage />} />
           <Route path="fines" element={<FinesPage />} />
           <Route path="payments" element={<PaymentsPage />} />
+          <Route path="users" element={<SuperAdminRoute><UsersPage /></SuperAdminRoute>} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

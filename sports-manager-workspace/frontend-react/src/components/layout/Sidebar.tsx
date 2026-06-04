@@ -9,21 +9,21 @@ import {
   Radio,
   LogOut,
   X,
-  Globe,
+  UserCog,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/auth.store';
 
 const NAV_DEFAULT = [
-  { to: '/admin',             icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/tournaments', icon: Trophy,          label: 'Torneos'            },
-  { to: '/admin/teams',       icon: Users,           label: 'Equipos'            },
-  { to: '/admin/fines',       icon: AlertTriangle,   label: 'Multas'             },
-  { to: '/admin/payments',    icon: CreditCard,      label: 'Pagos'              },
-  { to: '/admin/matches',     icon: Radio,           label: 'Partidos'           },
+  { to: '/admin',             icon: LayoutDashboard, label: 'Dashboard', end: true  },
+  { to: '/admin/tournaments', icon: Trophy,          label: 'Torneos',   end: false },
+  { to: '/admin/teams',       icon: Users,           label: 'Equipos',   end: false },
+  { to: '/admin/fines',       icon: AlertTriangle,   label: 'Multas',    end: false },
+  { to: '/admin/payments',    icon: CreditCard,      label: 'Pagos',     end: false },
+  { to: '/admin/matches',     icon: Radio,           label: 'Partidos',  end: false },
 ];
 
-const NAV_PLATFORM_ADMIN = [
-  { to: '/admin/leagues', icon: Globe, label: 'Ligas', end: false },
+const NAV_SUPER_ADMIN_EXTRA = [
+  { to: '/admin/users', icon: UserCog, label: 'Usuarios', end: false },
 ];
 
 interface SidebarProps {
@@ -35,8 +35,10 @@ interface SidebarProps {
 export default function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  const isPlatformAdmin = user?.role === 'PLATFORM_ADMIN';
-  const NAV = isPlatformAdmin ? NAV_PLATFORM_ADMIN : NAV_DEFAULT;
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+  const NAV = isSuperAdmin
+    ? [...NAV_DEFAULT, ...NAV_SUPER_ADMIN_EXTRA]
+    : NAV_DEFAULT;
 
   const handleLogout = () => {
     logout();
