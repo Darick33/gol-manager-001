@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { UsersRepository } from './users.repository';
 import { CreateVocalDto } from './dto/create-vocal.dto';
@@ -11,10 +11,16 @@ export class UsersService {
   constructor(private usersRepository: UsersRepository) {}
 
   async findByLeague(leagueId: string) {
+    if (!leagueId) {
+      throw new BadRequestException('Se requiere contexto de liga (X-Active-League-Id)');
+    }
     return this.usersRepository.findByLeague(leagueId, ['VOCAL', 'DELEGATE']);
   }
 
   async createVocal(dto: CreateVocalDto, leagueId: string) {
+    if (!leagueId) {
+      throw new BadRequestException('Se requiere contexto de liga (X-Active-League-Id)');
+    }
     const existing = await this.usersRepository.findByEmail(dto.email);
     if (existing) throw new ConflictException('Email ya registrado');
 
@@ -29,6 +35,9 @@ export class UsersService {
   }
 
   async createDelegate(dto: CreateDelegateDto, leagueId: string) {
+    if (!leagueId) {
+      throw new BadRequestException('Se requiere contexto de liga (X-Active-League-Id)');
+    }
     const existing = await this.usersRepository.findByEmail(dto.email);
     if (existing) throw new ConflictException('Email ya registrado');
 
@@ -44,6 +53,9 @@ export class UsersService {
   }
 
   async updateActive(userId: string, active: boolean, leagueId: string) {
+    if (!leagueId) {
+      throw new BadRequestException('Se requiere contexto de liga (X-Active-League-Id)');
+    }
     return this.usersRepository.updateActive(userId, active, leagueId);
   }
 }

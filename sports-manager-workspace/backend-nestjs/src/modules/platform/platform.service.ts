@@ -19,7 +19,7 @@ export class PlatformService {
       throw new NotFoundException('Liga no encontrada');
     }
 
-    if (league.status === 'SUSPENDED') {
+    if (league.status !== 'ACTIVE') {
       throw new ForbiddenException('Liga suspendida');
     }
 

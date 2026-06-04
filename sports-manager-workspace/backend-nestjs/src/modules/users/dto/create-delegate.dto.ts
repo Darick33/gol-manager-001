@@ -1,5 +1,6 @@
 import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
+// teamId assignment deferred — requires cross-tournament validation (future PR)
 export class CreateDelegateDto {
   @IsString()
   name: string;
@@ -14,9 +15,4 @@ export class CreateDelegateDto {
   @IsOptional()
   @IsString()
   whatsappNumber?: string;
-
-  // TODO: validate teamId belongs to the active league at service level
-  @IsOptional()
-  @IsString()
-  teamId?: string;
 }
