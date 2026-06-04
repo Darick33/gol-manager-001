@@ -15,6 +15,7 @@ export interface User {
   role: UserRole;
   leagueId: string | null;
   whatsappNumber: string | null;
+  active: boolean;
   createdAt: string;
 }
 

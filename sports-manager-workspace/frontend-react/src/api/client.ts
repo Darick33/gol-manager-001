@@ -26,14 +26,19 @@ function detectLeagueSlug(): string | null {
   return null;
 }
 
-// Attach JWT on every request
+// Attach JWT and active-league context on every request
 apiClient.interceptors.request.use((config) => {
   const raw = localStorage.getItem('auth-storage');
   if (raw) {
     try {
-      const { state } = JSON.parse(raw) as { state: { token: string | null } };
+      const { state } = JSON.parse(raw) as {
+        state: { token: string | null; activeLeagueId: string | null };
+      };
       if (state.token) {
         config.headers.Authorization = `Bearer ${state.token}`;
+      }
+      if (state.activeLeagueId) {
+        config.headers['X-Active-League-Id'] = state.activeLeagueId;
       }
     } catch {
       // malformed storage — ignore

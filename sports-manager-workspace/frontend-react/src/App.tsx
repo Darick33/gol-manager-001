@@ -1,9 +1,12 @@
-import { createContext, useContext, useMemo } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { exchangeHandshake } from './api/auth.api';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import AdminLayout from './components/layout/AdminLayout';
+import PlatformLayout from './components/layout/PlatformLayout';
 import ProtectedRoute from './components/common/ProtectedRoute';
+import PlatformRoute from './components/common/PlatformRoute';
 import DashboardPage from './pages/admin/DashboardPage';
 import TournamentsPage from './pages/admin/TournamentsPage';
 import TournamentDetailPage from './pages/admin/TournamentDetailPage';
@@ -12,7 +15,8 @@ import MatchesPage from './pages/admin/MatchesPage';
 import TeamsPage from './pages/admin/TeamsPage';
 import FinesPage from './pages/admin/FinesPage';
 import PaymentsPage from './pages/admin/PaymentsPage';
-import LeaguesPage from './pages/admin/LeaguesPage';
+import UsersPage from './pages/admin/UsersPage';
+import LeaguesManagementPage from './pages/platform/LeaguesManagementPage';
 import CreateLeaguePage from './pages/admin/CreateLeaguePage';
 import PublicPortalPage from './pages/public/PublicPortalPage';
 import PublicTournamentPage from './pages/public/PublicTournamentPage';
@@ -47,18 +51,36 @@ export function useLeague(): LeagueContextValue {
   return useContext(LeagueContext);
 }
 
-// ---- PLATFORM_ADMIN guard -------------------------------------------------
-function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
-  const user = useAuthStore((s) => s.user);
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.role !== 'PLATFORM_ADMIN') return <Navigate to="/admin" replace />;
-  return <>{children}</>;
-}
-
 // ---- App ------------------------------------------------------------------
 export default function App() {
   const slug = useMemo(() => detectSlug(), []);
+  const login = useAuthStore((s) => s.login);
+  const setActiveLeagueId = useAuthStore((s) => s.setActiveLeagueId);
+  const navigate = useNavigate();
+  const [handshaking, setHandshaking] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('handshake');
+    if (!token) return;
+
+    setHandshaking(true);
+    exchangeHandshake(token)
+      .then((data) => {
+        login(data.user, data.access_token);
+        setActiveLeagueId(data.user.leagueId);
+        window.history.replaceState({}, '', window.location.pathname);
+      })
+      .catch(() => {
+        navigate('/login', { replace: true });
+      })
+      .finally(() => {
+        setHandshaking(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (handshaking) return null;
 
   return (
     <LeagueContext.Provider value={{ slug }}>
@@ -82,19 +104,23 @@ export default function App() {
           }
         />
 
-        {/* PLATFORM_ADMIN routes — outside AdminLayout, own guard */}
+        {/* Redirect old /admin/leagues path to /platform */}
+        <Route path="/admin/leagues" element={<Navigate to="/platform" replace />} />
+
+        {/* PLATFORM_ADMIN routes — PlatformLayout, no sidebar */}
         <Route
-          path="/admin/leagues"
+          path="/platform"
           element={
-            <PlatformAdminRoute>
-              <AdminLayout />
-            </PlatformAdminRoute>
+            <PlatformRoute>
+              <PlatformLayout />
+            </PlatformRoute>
           }
         >
-          <Route index element={<LeaguesPage />} />
-          <Route path="new" element={<CreateLeaguePage />} />
+          <Route index element={<LeaguesManagementPage />} />
+          <Route path="leagues/new" element={<CreateLeaguePage />} />
         </Route>
 
+        {/* League admin routes */}
         <Route
           path="/admin"
           element={
@@ -110,6 +136,7 @@ export default function App() {
           <Route path="teams" element={<TeamsPage />} />
           <Route path="fines" element={<FinesPage />} />
           <Route path="payments" element={<PaymentsPage />} />
+          <Route path="users" element={<UsersPage />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

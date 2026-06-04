@@ -32,7 +32,7 @@ export default function CreateLeaguePage() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['leagues'] });
-      navigate('/admin/leagues');
+      navigate('/platform');
     },
     onError: (err: { response?: { status: number } }) => {
       if (err.response?.status === 409) {
@@ -67,7 +67,7 @@ export default function CreateLeaguePage() {
     <div>
       {/* Back nav */}
       <button
-        onClick={() => navigate('/admin/leagues')}
+        onClick={() => navigate('/platform')}
         style={{
           display: 'flex', alignItems: 'center', gap: 6,
           background: 'none', border: 'none', cursor: 'pointer',
@@ -173,7 +173,7 @@ export default function CreateLeaguePage() {
           )}
 
           <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
-            <Button variant="outline" type="button" onClick={() => navigate('/admin/leagues')}>
+            <Button variant="outline" type="button" onClick={() => navigate('/platform')}>
               Cancelar
             </Button>
             <Button type="submit" disabled={create.isPending || !!slugError}>
