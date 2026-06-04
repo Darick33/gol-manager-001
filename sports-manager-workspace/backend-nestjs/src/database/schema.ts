@@ -39,6 +39,7 @@ export const users = pgTable(
     role: userRoleEnum('role').notNull(),
     leagueId: uuid('league_id').references(() => leagues.id),
     whatsappNumber: varchar('whatsapp_number', { length: 20 }),
+    active: boolean('active').notNull().default(true),
     createdAt: timestamp('created_at').defaultNow().notNull(),
   },
   (t) => [
