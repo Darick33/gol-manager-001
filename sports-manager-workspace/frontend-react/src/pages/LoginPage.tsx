@@ -18,7 +18,11 @@ export default function LoginPage() {
     mutationFn: () => authApi.login(email, password),
     onSuccess: (data) => {
       login(data.user, data.access_token);
-      navigate('/admin');
+      if (data.user.role === 'PLATFORM_ADMIN') {
+        navigate('/platform');
+      } else {
+        navigate('/admin');
+      }
     },
     onError: () => {
       setError('Email o contraseña incorrectos.');
