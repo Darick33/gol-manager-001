@@ -1,5 +1,6 @@
-import { createContext, useContext, useMemo } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { exchangeHandshake } from './api/auth.api';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import AdminLayout from './components/layout/AdminLayout';
@@ -59,6 +60,33 @@ function PlatformAdminRoute({ children }: { children: React.ReactNode }) {
 // ---- App ------------------------------------------------------------------
 export default function App() {
   const slug = useMemo(() => detectSlug(), []);
+  const login = useAuthStore((s) => s.login);
+  const setActiveLeagueId = useAuthStore((s) => s.setActiveLeagueId);
+  const navigate = useNavigate();
+  const [handshaking, setHandshaking] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('handshake');
+    if (!token) return;
+
+    setHandshaking(true);
+    exchangeHandshake(token)
+      .then((data) => {
+        login(data.user, data.access_token);
+        setActiveLeagueId(data.user.leagueId);
+        window.history.replaceState({}, '', window.location.pathname);
+      })
+      .catch(() => {
+        navigate('/login', { replace: true });
+      })
+      .finally(() => {
+        setHandshaking(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (handshaking) return null;
 
   return (
     <LeagueContext.Provider value={{ slug }}>
