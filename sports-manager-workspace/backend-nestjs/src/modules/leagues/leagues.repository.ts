@@ -48,4 +48,13 @@ export class LeaguesRepository {
       .limit(1);
     return league ?? null;
   }
+
+  async updateStatus(id: string, status: 'ACTIVE' | 'SUSPENDED') {
+    const [league] = await this.db
+      .update(schema.leagues)
+      .set({ status })
+      .where(eq(schema.leagues.id, id))
+      .returning();
+    return league ?? null;
+  }
 }

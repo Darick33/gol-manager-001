@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { eq } from 'drizzle-orm';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, eq, inArray } from 'drizzle-orm';
 import { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { DRIZZLE } from '../../database/database.module';
 import * as schema from '../../database/schema';
@@ -35,6 +35,34 @@ export class UsersRepository {
       .insert(schema.users)
       .values(data)
       .returning();
+    return user;
+  }
+
+  async findByLeague(leagueId: string, roles: string[]) {
+    return this.db
+      .select()
+      .from(schema.users)
+      .where(
+        and(
+          eq(schema.users.leagueId, leagueId),
+          inArray(schema.users.role, roles as Array<typeof schema.users.role._.data>),
+        ),
+      )
+      .orderBy(schema.users.createdAt);
+  }
+
+  async updateActive(userId: string, active: boolean, leagueId: string) {
+    const [user] = await this.db
+      .update(schema.users)
+      .set({ active })
+      .where(
+        and(
+          eq(schema.users.id, userId),
+          eq(schema.users.leagueId, leagueId),
+        ),
+      )
+      .returning();
+    if (!user) throw new NotFoundException('Usuario no encontrado');
     return user;
   }
 }
