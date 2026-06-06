@@ -15,19 +15,21 @@ export default function PlatformLayout() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh', background: '#05050a' }}>
       {/* Top nav */}
-      <header style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 28px',
-        height: 56,
-        borderBottom: '1px solid rgba(255,255,255,0.06)',
-        background: 'rgba(5,5,10,0.95)',
-        position: 'sticky',
-        top: 0,
-        zIndex: 30,
-        flexShrink: 0,
-      }}>
+      <header
+        className="platform-header"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          height: 56,
+          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          background: 'rgba(5,5,10,0.95)',
+          position: 'sticky',
+          top: 0,
+          zIndex: 30,
+          flexShrink: 0,
+        }}
+      >
         {/* Title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <img
@@ -44,7 +46,7 @@ export default function PlatformLayout() {
         {/* Right side */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {user && (
-            <span style={{ fontSize: 13, color: '#475569' }}>
+            <span className="platform-username" style={{ fontSize: 13, color: '#475569' }}>
               {user.name}
             </span>
           )}
@@ -76,7 +78,7 @@ export default function PlatformLayout() {
             }}
           >
             <LogOut size={14} />
-            Cerrar sesión
+            <span className="platform-logout-text">Cerrar sesión</span>
           </button>
         </div>
       </header>
@@ -87,11 +89,25 @@ export default function PlatformLayout() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35, ease: [0.25, 0.46, 0.45, 0.94] }}
-          style={{ padding: '32px 36px', maxWidth: 1200, margin: '0 auto' }}
+          className="platform-main-content"
         >
           <Outlet />
         </motion.div>
       </main>
+
+      <style>{`
+        .platform-header { padding: 0 28px; }
+        .platform-username { display: inline; }
+        .platform-logout-text { display: inline; }
+        .platform-main-content { padding: 32px 36px; max-width: 1200px; margin: 0 auto; }
+
+        @media (max-width: 640px) {
+          .platform-header { padding: 0 16px; }
+          .platform-username { display: none; }
+          .platform-logout-text { display: none; }
+          .platform-main-content { padding: 20px 16px; }
+        }
+      `}</style>
     </div>
   );
 }

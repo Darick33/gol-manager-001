@@ -47,9 +47,7 @@ export default function LeaguesManagementPage() {
       return { previous };
     },
     onError: (_err, _vars, ctx) => {
-      if (ctx?.previous) {
-        qc.setQueryData(['platform', 'leagues'], ctx.previous);
-      }
+      if (ctx?.previous) qc.setQueryData(['platform', 'leagues'], ctx.previous);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['platform', 'leagues'] });
@@ -64,7 +62,7 @@ export default function LeaguesManagementPage() {
       const { handshake_token } = await enterLeague(league.id);
       window.open(buildLeagueUrl(league.slug, handshake_token), '_blank');
     } catch {
-      // silently ignore — optimistic UX; user sees nothing happened
+      // silently ignore
     } finally {
       setEnteringId(null);
     }
@@ -72,8 +70,7 @@ export default function LeaguesManagementPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+      <div className="lm-page-header">
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: '#f8fafc', margin: '0 0 4px', letterSpacing: '-0.6px' }}>
             Ligas
@@ -87,7 +84,6 @@ export default function LeaguesManagementPage() {
         </Button>
       </div>
 
-      {/* List */}
       {isLoading ? (
         <LeaguesSkeleton />
       ) : leagues.length === 0 ? (
@@ -114,8 +110,82 @@ export default function LeaguesManagementPage() {
       )}
 
       <style>{`
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes lm-pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        @keyframes lm-spin { to { transform: rotate(360deg); } }
+
+        .lm-page-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 32px;
+        }
+
+        /* League row */
+        .lm-row {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 18px 20px;
+          border-radius: 16px;
+          background: rgba(255,255,255,0.02);
+          border: 1px solid rgba(255,255,255,0.07);
+        }
+        .lm-row-left {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          flex: 1;
+          min-width: 0;
+        }
+        .lm-row-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-shrink: 0;
+        }
+        .lm-badge {
+          font-size: 12px;
+          font-weight: 600;
+          padding: 4px 10px;
+          border-radius: 100px;
+          white-space: nowrap;
+          flex-shrink: 0;
+        }
+        .lm-action-btn {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+          padding: 7px 14px;
+          border-radius: 10px;
+          font-size: 12px;
+          font-weight: 600;
+          transition: all 0.15s ease;
+          white-space: nowrap;
+          flex-shrink: 0;
+          font-family: inherit;
+        }
+
+        /* Mobile ≤600px */
+        @media (max-width: 600px) {
+          .lm-page-header { margin-bottom: 20px; }
+
+          .lm-row {
+            flex-direction: column;
+            align-items: stretch;
+            gap: 12px;
+            padding: 14px 16px;
+          }
+          .lm-row-left { gap: 10px; }
+          .lm-row-right {
+            justify-content: space-between;
+          }
+          .lm-action-btn {
+            flex: 1;
+            justify-content: center;
+            padding: 8px 10px;
+          }
+        }
       `}</style>
     </div>
   );
@@ -140,91 +210,71 @@ function LeagueRow({
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.06, duration: 0.4 }}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 16,
-        padding: '18px 20px', borderRadius: 16,
-        background: 'rgba(255,255,255,0.02)',
-        border: '1px solid rgba(255,255,255,0.07)',
-      }}
+      className="lm-row"
     >
-      {/* Logo */}
-      <div style={{
-        width: 44, height: 44, borderRadius: 13,
-        background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        overflow: 'hidden',
-      }}>
-        {league.logoUrl
-          ? <img src={league.logoUrl} alt={league.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <Globe size={20} color="#10b981" />}
-      </div>
-
-      {/* Info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>
-          {league.name}
+      {/* Left: logo + info */}
+      <div className="lm-row-left">
+        <div style={{
+          width: 44, height: 44, borderRadius: 13,
+          background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          overflow: 'hidden',
+        }}>
+          {league.logoUrl
+            ? <img src={league.logoUrl} alt={league.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <Globe size={20} color="#10b981" />}
         </div>
-        <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#475569', flexWrap: 'wrap' }}>
-          <span>slug: <code style={{ color: '#94a3b8' }}>{league.slug}</code></span>
-          {league.subdomain && (
-            <>
-              <span>·</span>
-              <span>subdominio: <code style={{ color: '#94a3b8' }}>{league.subdomain}</code></span>
-            </>
-          )}
-          <span>·</span>
-          <span>{new Date(league.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f1f5f9', marginBottom: 4 }}>
+            {league.name}
+          </div>
+          <div style={{ display: 'flex', gap: 8, fontSize: 12, color: '#475569', flexWrap: 'wrap' }}>
+            <span><code style={{ color: '#94a3b8' }}>{league.slug}</code></span>
+            {league.subdomain && (
+              <span>· <code style={{ color: '#94a3b8' }}>{league.subdomain}</code></span>
+            )}
+            <span>· {new Date(league.createdAt).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+          </div>
         </div>
       </div>
 
-      {/* Status badge */}
-      <span style={{
-        fontSize: 12, fontWeight: 600,
-        color: status.color, background: status.bg,
-        padding: '4px 10px', borderRadius: 100, flexShrink: 0,
-      }}>
-        {status.label}
-      </span>
+      {/* Right: status + actions */}
+      <div className="lm-row-right">
+        <span className="lm-badge" style={{ color: status.color, background: status.bg }}>
+          {status.label}
+        </span>
 
-      {/* Actions */}
-      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-        {/* Toggle activate/deactivate */}
         <button
           onClick={onToggle}
           disabled={isToggling}
+          className="lm-action-btn"
           style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '7px 14px', borderRadius: 10, flexShrink: 0,
             background: isActive ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)',
             border: isActive ? '1px solid rgba(239,68,68,0.2)' : '1px solid rgba(16,185,129,0.2)',
             color: isActive ? '#ef4444' : '#10b981',
-            fontSize: 12, fontWeight: 600, cursor: isToggling ? 'not-allowed' : 'pointer',
+            cursor: isToggling ? 'not-allowed' : 'pointer',
             opacity: isToggling ? 0.6 : 1,
-            transition: 'all 0.15s ease',
           }}
         >
-          {isToggling && <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />}
+          {isToggling && <Loader2 size={11} style={{ animation: 'lm-spin 1s linear infinite' }} />}
           {isActive ? 'Suspender' : 'Activar'}
         </button>
 
-        {/* Entrar */}
         <button
           onClick={onEnter}
           disabled={isEntering || !isActive}
+          className="lm-action-btn"
           style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            padding: '7px 14px', borderRadius: 10, flexShrink: 0,
             background: 'rgba(16,185,129,0.08)',
             border: '1px solid rgba(16,185,129,0.2)',
             color: '#10b981',
-            fontSize: 12, fontWeight: 600,
             cursor: isEntering || !isActive ? 'not-allowed' : 'pointer',
             opacity: isEntering || !isActive ? 0.5 : 1,
-            transition: 'all 0.15s ease',
           }}
         >
           {isEntering
-            ? <Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} />
+            ? <Loader2 size={11} style={{ animation: 'lm-spin 1s linear infinite' }} />
             : <ExternalLink size={11} />}
           Entrar
         </button>
@@ -260,7 +310,7 @@ function LeaguesSkeleton() {
           height: 80, borderRadius: 16,
           background: 'rgba(255,255,255,0.02)',
           border: '1px solid rgba(255,255,255,0.06)',
-          animation: 'pulse 1.5s ease-in-out infinite',
+          animation: 'lm-pulse 1.5s ease-in-out infinite',
         }} />
       ))}
     </div>
