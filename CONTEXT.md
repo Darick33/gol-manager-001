@@ -2,14 +2,17 @@
 
 ## Propósito
 
-Plataforma de gestión de ligas de fútbol y futsal. Permite administrar torneos, partidos en vivo, multas, pagos y estadísticas. Diseñada como SaaS multi-liga.
+Plataforma SaaS multi-liga de gestión de ligas de fútbol y futsal. Permite administrar torneos, partidos en vivo, multas, pagos y estadísticas. Cada Liga opera en su propio subdominio bajo un DNS wildcard (`*.golmanager.com`).
 
 ---
 
 ## Entidades del dominio
 
+### Plataforma
+Nivel meta por encima de todas las Ligas. Gestionada exclusivamente por el PLATFORM_ADMIN desde el dominio principal (`app.golmanager.com` o equivalente). La Plataforma permite crear, activar y desactivar Ligas, y acceder a cualquier Liga como operador.
+
 ### Liga
-Unidad organizacional y boundary de tenant. Cada Liga tiene su propio subdominio (`ligabogota.golmanager.com`), su propio Liga Admin, y no comparte datos con otras Ligas. Una Liga puede tener múltiples Torneos a lo largo del tiempo.
+Unidad organizacional y boundary de tenant. Cada Liga tiene su propio subdominio (`ligabogota.golmanager.com`) generado automáticamente vía DNS wildcard, su propio LIGA_ADMIN, y no comparte datos con otras Ligas. Una Liga puede estar activa o inactiva. Una Liga puede tener múltiples Torneos a lo largo del tiempo.
 
 ### Torneo
 Competición dentro de una Liga. Tiene un formato (Round Robin, Grupos + Eliminación, Eliminación Directa), un deporte (Fútbol / Futsal), y configuración de fees (cancha, árbitro) y multas (tarjeta amarilla, roja, llegada tarde). Un Torneo tiene Equipos inscritos y genera Partidos.
@@ -50,10 +53,23 @@ Representante de un Equipo. Recibe notificaciones por WhatsApp, sube comprobante
 
 | Rol | Scope | Capacidades |
 |---|---|---|
-| PLATFORM_ADMIN | Plataforma completa | Crear/gestionar Ligas, billing, soporte |
-| LIGA_ADMIN (ex SUPER_ADMIN) | Una Liga | Crear torneos, equipos, vocales, delegados. Ver todos los datos de su liga |
+| PLATFORM_ADMIN | Plataforma completa | Crear/gestionar Ligas, activar/desactivar Ligas, operar dentro de cualquier Liga con Contexto Activo |
+| LIGA_ADMIN | Una Liga | Crear torneos, equipos, gestionar usuarios (vocales y delegados) de su liga, ver todos los datos de su liga |
 | VOCAL | Un Partido | Operar partidos en vivo |
 | DELEGATE | Un Equipo | Ver deudas, subir pagos, gestionar roster |
+
+> **Nota de código:** el enum en DB usa `SUPER_ADMIN` como valor heredado de `LIGA_ADMIN`. Pendiente renombrar en una migración futura.
+
+---
+
+## Contexto Activo de Liga
+
+Cuando el PLATFORM_ADMIN "entra" a una Liga para operar, se establece un **Contexto Activo**. Esto implica:
+- El backend emite un **Handshake Token** de corta duración (5 min, un solo uso) que contiene `leagueId` + `role: PLATFORM_ADMIN`.
+- El frontend abre el subdominio de esa Liga en una nueva pestaña con el Handshake Token en la URL.
+- El subdominio intercambia el Handshake Token por una sesión real y envía `X-Active-League-Id` en cada request.
+- El TenantGuard acepta este header para PLATFORM_ADMIN y lo usa como filtro de tenant.
+- Una Liga inactiva bloquea el acceso de sus usuarios al subdominio.
 
 ---
 
@@ -71,6 +87,13 @@ Representante de un Equipo. Recibe notificaciones por WhatsApp, sube comprobante
 
 ---
 
+- **Plataforma** — nivel meta por encima de todas las Ligas. No usar "sistema", "panel central", "master".
+- **Contexto Activo** — sesión del PLATFORM_ADMIN operando dentro de una Liga específica. No usar "impersonación" ni "modo admin".
+- **Handshake Token** — token de corta duración para establecer un Contexto Activo cross-subdominio. No usar "magic link".
+- **LIGA_ADMIN** — administrador de una Liga. No usar "Super Admin", "league admin", ni "super_admin" en UI. (Valor en DB: `SUPER_ADMIN` — pendiente migración.)
+
+---
+
 ## Invariantes del dominio
 
 - Un Jugador no puede tener dos dorsales iguales en el mismo Equipo.
@@ -78,3 +101,6 @@ Representante de un Equipo. Recibe notificaciones por WhatsApp, sube comprobante
 - Dos tarjetas amarillas al mismo Jugador en el mismo Partido generan expulsión automática.
 - Un Partido no puede cerrarse sin estar EN_CURSO.
 - Los datos de una Liga son invisibles para usuarios de otra Liga.
+- Una Liga inactiva no permite login ni acceso al subdominio a sus usuarios.
+- El Handshake Token expira en 5 minutos y es de un solo uso.
+- El PLATFORM_ADMIN siempre opera en una Liga bajo Contexto Activo — nunca con `leagueId: null` en operaciones de escritura.
