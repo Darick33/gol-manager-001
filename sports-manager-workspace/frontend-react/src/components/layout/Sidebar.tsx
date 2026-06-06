@@ -35,8 +35,8 @@ interface SidebarProps {
 export default function Sidebar({ isMobile = false, isOpen = true, onClose }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
-  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
-  const NAV = isSuperAdmin
+  const canManageUsers = user?.role === 'SUPER_ADMIN' || user?.role === 'PLATFORM_ADMIN';
+  const NAV = canManageUsers
     ? [...NAV_DEFAULT, ...NAV_SUPER_ADMIN_EXTRA]
     : NAV_DEFAULT;
 
