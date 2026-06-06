@@ -22,6 +22,14 @@ export function createDelegate(dto: {
   return apiClient.post<User>('/users/delegate', dto).then((r) => r.data);
 }
 
+export function createSuperAdmin(dto: {
+  name: string;
+  email: string;
+  password: string;
+}): Promise<User> {
+  return apiClient.post<User>('/users/super-admin', dto).then((r) => r.data);
+}
+
 export function updateUserStatus(id: string, active: boolean): Promise<User> {
   return apiClient.patch<User>(`/users/${id}/status`, { active }).then((r) => r.data);
 }

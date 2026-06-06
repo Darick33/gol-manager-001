@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Users, Plus, X, Loader2, AlertCircle } from 'lucide-react';
-import { getLeagueUsers, createVocal, createDelegate, updateUserStatus } from '../../api/users.api';
+import { getLeagueUsers, createVocal, createDelegate, createSuperAdmin, updateUserStatus } from '../../api/users.api';
+import { useAuthStore } from '../../store/auth.store';
 import { Button } from '../../components/ui/button';
 import type { User, UserRole } from '../../types';
 
@@ -31,11 +32,13 @@ const inputStyle: React.CSSProperties = {
 
 // ── UsersPage ──────────────────────────────────────────────────────────────
 
-type ModalType = 'vocal' | 'delegate' | null;
+type ModalType = 'vocal' | 'delegate' | 'super-admin' | null;
 
 export default function UsersPage() {
   const qc = useQueryClient();
   const [modal, setModal] = useState<ModalType>(null);
+  const currentUser = useAuthStore((s) => s.user);
+  const isPlatformAdmin = currentUser?.role === 'PLATFORM_ADMIN';
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
@@ -48,7 +51,6 @@ export default function UsersPage() {
     onMutate: async ({ id, active }) => {
       await qc.cancelQueries({ queryKey: ['users'] });
       const previous = qc.getQueryData<User[]>(['users']);
-      // optimistic update
       qc.setQueryData<User[]>(['users'], (old = []) =>
         old.map((u) => (u.id === id ? { ...u, active } : u)),
       );
@@ -62,13 +64,14 @@ export default function UsersPage() {
     },
   });
 
-  // Filter to VOCAL and DELEGATE only
-  const displayUsers = users.filter((u) => u.role === 'VOCAL' || u.role === 'DELEGATE');
+  const displayUsers = isPlatformAdmin
+    ? users.filter((u) => u.role === 'VOCAL' || u.role === 'DELEGATE' || u.role === 'SUPER_ADMIN')
+    : users.filter((u) => u.role === 'VOCAL' || u.role === 'DELEGATE');
 
   return (
     <div>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 36, height: 36, borderRadius: 10,
@@ -86,7 +89,16 @@ export default function UsersPage() {
             </p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {isPlatformAdmin && (
+            <Button
+              variant="outline"
+              onClick={() => setModal('super-admin')}
+              style={{ borderColor: 'rgba(245,158,11,0.3)', color: '#f59e0b' }}
+            >
+              <Plus size={14} style={{ marginRight: 5 }} /> Nuevo Admin
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setModal('vocal')}>
             <Plus size={14} style={{ marginRight: 5 }} /> Nuevo Vocal
           </Button>
@@ -100,7 +112,12 @@ export default function UsersPage() {
       {isLoading ? (
         <UsersSkeleton />
       ) : displayUsers.length === 0 ? (
-        <EmptyUsers onVocal={() => setModal('vocal')} onDelegate={() => setModal('delegate')} />
+        <EmptyUsers
+          isPlatformAdmin={isPlatformAdmin}
+          onAdmin={() => setModal('super-admin')}
+          onVocal={() => setModal('vocal')}
+          onDelegate={() => setModal('delegate')}
+        />
       ) : (
         <div style={{
           background: 'rgba(255,255,255,0.02)',
@@ -146,7 +163,7 @@ export default function UsersPage() {
             type={modal}
             onClose={() => setModal(null)}
             onSuccess={() => {
-              qc.invalidateQueries({ queryKey: ['users'] });
+              void qc.invalidateQueries({ queryKey: ['users'] });
               setModal(null);
             }}
           />
@@ -250,7 +267,7 @@ function UserRow({
 function CreateUserModal({
   type, onClose, onSuccess,
 }: {
-  type: 'vocal' | 'delegate';
+  type: 'vocal' | 'delegate' | 'super-admin';
   onClose: () => void;
   onSuccess: () => void;
 }) {
@@ -266,6 +283,9 @@ function CreateUserModal({
     mutationFn: () => {
       if (type === 'vocal') {
         return createVocal({ name: form.name, email: form.email, password: form.password });
+      }
+      if (type === 'super-admin') {
+        return createSuperAdmin({ name: form.name, email: form.email, password: form.password });
       }
       return createDelegate({
         name: form.name,
@@ -290,7 +310,7 @@ function CreateUserModal({
     createUser.mutate();
   };
 
-  const title = type === 'vocal' ? 'Nuevo Vocal' : 'Nuevo Delegado';
+  const title = type === 'vocal' ? 'Nuevo Vocal' : type === 'super-admin' ? 'Nuevo Administrador' : 'Nuevo Delegado';
 
   return (
     <motion.div
@@ -428,7 +448,14 @@ function ModalField({ label, children }: { label: string; children: React.ReactN
 
 // ── Empty state ────────────────────────────────────────────────────────────
 
-function EmptyUsers({ onVocal, onDelegate }: { onVocal: () => void; onDelegate: () => void }) {
+function EmptyUsers({
+  isPlatformAdmin, onAdmin, onVocal, onDelegate,
+}: {
+  isPlatformAdmin: boolean;
+  onAdmin: () => void;
+  onVocal: () => void;
+  onDelegate: () => void;
+}) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       style={{
@@ -440,9 +467,20 @@ function EmptyUsers({ onVocal, onDelegate }: { onVocal: () => void; onDelegate: 
       <Users size={36} color="#334155" style={{ marginBottom: 16 }} />
       <p style={{ fontSize: 16, fontWeight: 600, color: '#64748b', margin: '0 0 8px' }}>Sin usuarios aún</p>
       <p style={{ fontSize: 14, color: '#334155', margin: '0 0 24px' }}>
-        Creá el primer vocal o delegado para esta liga.
+        {isPlatformAdmin
+          ? 'Creá el primer administrador, vocal o delegado para esta liga.'
+          : 'Creá el primer vocal o delegado para esta liga.'}
       </p>
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+        {isPlatformAdmin && (
+          <Button
+            variant="outline"
+            onClick={onAdmin}
+            style={{ borderColor: 'rgba(245,158,11,0.3)', color: '#f59e0b' }}
+          >
+            <Plus size={14} style={{ marginRight: 5 }} />Nuevo Admin
+          </Button>
+        )}
         <Button variant="outline" onClick={onVocal}><Plus size={14} style={{ marginRight: 5 }} />Nuevo Vocal</Button>
         <Button onClick={onDelegate}><Plus size={14} style={{ marginRight: 5 }} />Nuevo Delegado</Button>
       </div>
