@@ -18,7 +18,7 @@ export class AuthService {
     @Inject(REDIS_CLIENT) private redis: Redis,
   ) {}
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, subdomain?: string) {
     const user = await this.usersRepository.findByEmail(dto.email);
     if (!user) throw new UnauthorizedException('Credenciales inválidas');
 
@@ -35,9 +35,18 @@ export class AuthService {
 
     const leagueId = user.leagueId ?? null;
     const payload = { sub: user.id, email: user.email, role: user.role, leagueId };
+
+    // Resolve active league for PLATFORM_ADMIN logging in on a league subdomain
+    let activeLeagueId: string | null = null;
+    if (user.role === 'PLATFORM_ADMIN' && subdomain) {
+      const league = await this.leaguesRepository.findBySlug(subdomain);
+      activeLeagueId = league?.id ?? null;
+    }
+
     return {
       access_token: this.jwtService.sign(payload),
       user: { id: user.id, name: user.name, email: user.email, role: user.role, leagueId },
+      activeLeagueId,
     };
   }
 

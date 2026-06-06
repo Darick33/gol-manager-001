@@ -10,6 +10,7 @@ import { Button } from '../components/ui/button';
 export default function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+  const setActiveLeagueId = useAuthStore((s) => s.setActiveLeagueId);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -18,6 +19,7 @@ export default function LoginPage() {
     mutationFn: () => authApi.login(email, password),
     onSuccess: (data) => {
       login(data.user, data.access_token);
+      if (data.activeLeagueId) setActiveLeagueId(data.activeLeagueId);
       const onLeagueSubdomain = (() => {
         const h = window.location.hostname;
         if (h === 'localhost' || h === '127.0.0.1') return !!new URLSearchParams(window.location.search).get('league');
