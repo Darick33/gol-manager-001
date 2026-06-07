@@ -12,6 +12,17 @@ export class PublicController {
     return league.id as string;
   }
 
+  @Get('league')
+  getLeagueInfo(@Req() req: Request) {
+    const league = (req as any).league ?? (req as any).raw?.league;
+    if (!league) throw new NotFoundException('Liga no encontrada');
+    return {
+      name: league.name as string,
+      logoUrl: (league.logoUrl ?? null) as string | null,
+      slug: league.slug as string,
+    };
+  }
+
   @Get('live')
   getLiveMatches(@Req() req: Request) {
     const leagueId = this.extractLeagueId(req);

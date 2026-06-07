@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { exchangeHandshake } from './api/auth.api';
 import LandingPage from './pages/LandingPage';
+import LeagueLandingPage from './pages/LeagueLandingPage';
 import LoginPage from './pages/LoginPage';
 import AdminLayout from './components/layout/AdminLayout';
 import PlatformLayout from './components/layout/PlatformLayout';
@@ -87,7 +88,7 @@ export default function App() {
   return (
     <LeagueContext.Provider value={{ slug }}>
       <Routes>
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={slug ? <LeagueLandingPage /> : <LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
 
         {/* Public portal — no auth required */}

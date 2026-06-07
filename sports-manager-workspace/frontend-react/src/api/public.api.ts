@@ -47,7 +47,16 @@ export interface ScorerRow {
   goals: number;
 }
 
+export interface PublicLeagueInfo {
+  name: string;
+  logoUrl: string | null;
+  slug: string;
+}
+
 export const publicApi = {
+  getLeagueInfo: () =>
+    apiClient.get<PublicLeagueInfo>('/public/league').then((r) => r.data),
+
   getLiveMatches: () =>
     apiClient.get<PublicMatch[]>('/public/live').then((r) => r.data),
 
